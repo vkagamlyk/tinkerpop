@@ -52,6 +52,7 @@ image::https://raw.githubusercontent.com/apache/tinkerpop/master/docs/static/ima
 * Removed previously deprecated Gremlin steps that conflicted with Python keywords.
 * Bumped to Apache Hadoop 3.3.1.
 * Bumped to Apache Spark 3.2.0.
+* Bumped to Apache Groovy 4.0.0.
 * Bumped node.js in `gremlin-javascript` to v16.13.0.
 * Changed `NumberHelper` to properly cast to `byte` and `short` rather than default coercing to `Integer`.
 * Modified some driver defaults (maximum content length, pool size, maximum in process) to be more consistent with one another.
@@ -581,7 +582,7 @@ image::https://raw.githubusercontent.com/apache/tinkerpop/master/docs/static/ima
 * Prevented Java driver from sending multiple request messages with the same identifier.
 * Improved error message for `property(T,Object)` when mutating graph elements.
 * Added method caching for GraphSON 3.0 deserialization of `P` and `TextP` instances.
-* Allowed setting `ssl_options` for gremlin-python.  
+* Allowed setting `ssl_options` for gremlin-python.
 * Fixed bug with global `dedup()` when used in reducing `by()` of `group()`.
 * Fixed bug with Javascript Groovy `Translator` when generating Gremlin with multiple embedded traversals.
 * Modified Gremlin Server `Settings` to be more extensible allowing for custom options with the YAML parser.
