@@ -19,11 +19,22 @@
 package org.apache.tinkerpop.gremlin.driver;
 
 import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.driver.remote.DriverRemoteConnection;
+import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV3d0;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
+import org.apache.tinkerpop.gremlin.structure.io.IoRegistry;
+import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONMapper;
+import org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerIoRegistryV3d0;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import static org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource.traversal;
+import static org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__.both;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -65,5 +76,44 @@ public class RequestMessageTest {
     public void shouldReturnArgAsOptional() {
         final RequestMessage msg = RequestMessage.build("op").add("test", "testing").create();
         assertEquals("testing", msg.optionalArgs("test").get());
+    }
+
+    @Test
+    public void test() {
+        int port = Integer.parseInt(System.getProperty("port", "8182"));
+
+        MessageSerializer serializer = new GraphSONMessageSerializerV3d0();
+
+        /**
+         * There typically needs to be only one Cluster instance in an application.
+         */
+        Cluster cluster = Cluster.build().port(port).serializer(serializer).create();
+
+        /**
+         * Construct a remote GraphTraversalSource using the above created Cluster instance that will connect to Gremlin
+         * Server.
+         */
+        GraphTraversalSource g = traversal().withRemote(DriverRemoteConnection.using(cluster));
+
+
+        List<Integer> list = new LinkedList<>();
+        for (int i = 0; i < 1; i++)
+        {
+            list.add(i);
+        }
+        list.parallelStream().map(i -> longRunning(g)).collect(Collectors.toList());
+
+
+        //long count = g.V().count().next();
+        //assertEquals(100, count);
+    }
+
+    private int longRunning(GraphTraversalSource g) {
+        try{
+            g.V().repeat(both()).times(3).path().limit(100000000).count().next();
+        } catch(Exception e){
+
+        }
+        return 1;
     }
 }

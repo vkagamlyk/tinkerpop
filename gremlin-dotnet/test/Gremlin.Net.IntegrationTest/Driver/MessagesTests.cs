@@ -24,11 +24,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using Gremlin.Net.Driver;
 using Gremlin.Net.Driver.Exceptions;
 using Gremlin.Net.Driver.Messages;
+using Gremlin.Net.Driver.Remote;
 using Gremlin.Net.IntegrationTest.Util;
+using Gremlin.Net.Process.Traversal;
+using Gremlin.Net.Process.Traversal.Strategy.Optimization;
+using Gremlin.Net.Structure;
 using Xunit;
 
 namespace Gremlin.Net.IntegrationTest.Driver
@@ -92,6 +97,67 @@ namespace Gremlin.Net.IntegrationTest.Driver
                 Assert.Contains("InvalidRequestArguments", thrownException.Message);
                 Assert.Contains(invalidProcessorName, thrownException.Message);
                 Assert.Contains("OpProcessor", thrownException.Message);
+            }
+        }
+
+        [Fact]
+        public async Task LoadData()
+        {
+            var gremlinServer = new GremlinServer(TestHost, TestPort);
+            using (var gremlinClient = new GremlinClient(gremlinServer))
+            {
+                var g = AnonymousTraversalSource.Traversal().WithRemote(new DriverRemoteConnection(gremlinClient));
+                await g.V().Drop().Promise(t => t.Iterate());
+
+                const int nrVertices = 100;
+                var vertices = new List<Vertex>(nrVertices);
+                for (var i = 0; i < nrVertices; i++)
+                {
+                    var vertex = await g.AddV().Property("name", i).Promise(t => t.Next());
+                    vertices.Add(vertex);
+                }
+                Assert.Equal(nrVertices, await g.V().Count().Promise(t => t.Next()));
+
+                foreach (var sourceVertex in vertices)
+                {
+                    foreach (var targetVertex in vertices)
+                    {
+                        await g.V(sourceVertex).As("source").V(targetVertex).AddE("knows").From("source").Constant(1)
+                            .Promise(t => t.Iterate());
+                    }
+                }
+                Assert.Equal(nrVertices * nrVertices, await g.E().Count().Promise(t => t.Next()));
+            }
+        }
+        
+        [Fact]
+        public async Task ShouldNotOverloadServer()
+        {
+            var gremlinServer = new GremlinServer(TestHost, TestPort);
+            using (var gremlinClient = new GremlinClient(gremlinServer))
+            {
+                var g = AnonymousTraversalSource.Traversal().WithRemote(new DriverRemoteConnection(gremlinClient));
+
+                const int nrTasks = 10;
+                var tasks = new List<Task>(nrTasks);
+                for (var i = 0; i < nrTasks; i++)
+                {
+                    tasks.Add(LongRunningAsync(g));
+                }
+                await Task.WhenAll(tasks);
+                
+                Assert.Equal(100, await g.V().Count().Promise(t => t.Next()));
+            }
+        }
+
+        private async Task LongRunningAsync(GraphTraversalSource g)
+        {
+            try
+            {
+                await g.V().Repeat(__.Both()).Times(3).Path().Limit<long>(100000000).Count().Promise(t => t.Next());
+            }
+            catch (Exception)
+            {
             }
         }
 
