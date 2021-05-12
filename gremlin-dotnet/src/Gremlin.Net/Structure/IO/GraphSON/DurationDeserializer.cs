@@ -21,6 +21,7 @@
 
 #endregion
 
+using System.IO;
 using System.Text.Json;
 using System.Xml;
 
@@ -30,7 +31,8 @@ namespace Gremlin.Net.Structure.IO.GraphSON
     {
         public dynamic Objectify(JsonElement graphsonObject, GraphSONReader reader)
         {
-            var duration = graphsonObject.GetString();
+            var duration = graphsonObject.GetString() ??
+                           throw new IOException("Read null but expected a Duration string representation");
             return XmlConvert.ToTimeSpan(duration);
         }
     }

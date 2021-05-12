@@ -24,6 +24,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -34,12 +35,12 @@ namespace Gremlin.Net.Process.Traversal
     /// </summary>
     public abstract class DefaultTraversal<S, E> : ITraversal<S, E>
     {
-        private IEnumerator<Traverser> _traverserEnumerator;
+        private IEnumerator<Traverser>? _traverserEnumerator;
 
         /// <summary>
         ///     Gets the <see cref="Traversal.Bytecode" /> representation of this traversal.
         /// </summary>
-        public Bytecode Bytecode { get; protected set; }
+        public abstract Bytecode Bytecode { get; }
         
         /// <summary>
         ///     Determines if this traversal was spawned anonymously or not.
@@ -49,7 +50,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Gets or sets the <see cref="Traverser" />'s of this traversal that hold the results of the traversal.
         /// </summary>
-        public IEnumerable<Traverser> Traversers { get; set; }
+        public IEnumerable<Traverser>? Traversers { get; set; }
 
         ITraversal ITraversal.Iterate()
         {
@@ -61,8 +62,7 @@ namespace Gremlin.Net.Process.Traversal
         /// </summary>
         protected ICollection<ITraversalStrategy> TraversalStrategies { get; set; } = new List<ITraversalStrategy>();
 
-        private IEnumerator<Traverser> TraverserEnumerator
-            => _traverserEnumerator ?? (_traverserEnumerator = GetTraverserEnumerator());
+        private IEnumerator<Traverser> TraverserEnumerator => _traverserEnumerator ??= GetTraverserEnumerator();
 
         private bool _nextAvailable;
         private bool _fetchedNext;
@@ -108,23 +108,23 @@ namespace Gremlin.Net.Process.Traversal
         }
 
         /// <inheritdoc />
-        public E Current => GetCurrent<E>();
+        public E? Current => GetCurrent<E>();
 
-        object IEnumerator.Current => GetCurrent();
+        object? IEnumerator.Current => GetCurrent();
 
-        private TReturn GetCurrent<TReturn>()
+        private TReturn? GetCurrent<TReturn>()
         {
             var value = GetCurrent();
             var returnType = typeof(TReturn);
             if (value == null || value.GetType() == returnType)
             {
                 // Avoid evaluating type comparisons
-                return (TReturn) value;
+                return (TReturn?) value;
             }
-            return (TReturn) GetValue(returnType, value);
+            return (TReturn?) GetValue(returnType, value);
         }
 
-        private object GetCurrent()
+        private object? GetCurrent()
         {
             // Use dynamic to object to prevent runtime dynamic conversion evaluation
             return TraverserEnumerator.Current?.Object;
@@ -133,7 +133,8 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         /// Gets the value, converting to the expected type when necessary and supported. 
         /// </summary>
-        private static object GetValue(Type type, object value)
+        [return: NotNullIfNotNull("value")]
+        private static object? GetValue(Type type, object? value)
         {
             var genericType = type.GetTypeInfo().IsGenericType
                 ? type.GetTypeInfo().GetGenericTypeDefinition()
@@ -143,7 +144,11 @@ namespace Gremlin.Net.Process.Traversal
                 var keyType = type.GenericTypeArguments[0];
                 var valueType = type.GenericTypeArguments[1];
                 var mapType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
-                var result = (IDictionary) Activator.CreateInstance(mapType);
+                var result = (IDictionary?) Activator.CreateInstance(mapType);
+                if (result == null)
+                {
+                    throw new InvalidOperationException($"Cannot convert value {value} to a Dictionary.");
+                }
                 foreach (DictionaryEntry kv in dictValue)
                 {
                     result.Add(GetValue(keyType, kv.Key), GetValue(valueType, kv.Value));
@@ -154,7 +159,11 @@ namespace Gremlin.Net.Process.Traversal
             {
                 var childType = type.GenericTypeArguments[0];
                 var listType = typeof(List<>).MakeGenericType(childType);
-                var result = (IList) Activator.CreateInstance(listType);
+                var result = (IList?) Activator.CreateInstance(listType);
+                if (result == null)
+                {
+                    throw new InvalidOperationException($"Cannot convert value {value} to a list.");
+                }
                 foreach (var itemValue in enumerableValue)
                 {
                     result.Add(itemValue);
@@ -168,6 +177,11 @@ namespace Gremlin.Net.Process.Traversal
         {
             if (Traversers == null)
                 ApplyStrategies();
+            if (Traversers == null)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot enumerate the traversal as there are no {nameof(Traversers)}. Maybe a strategy needs to be added.");
+            }
             return Traversers.GetEnumerator();
         }
 
@@ -195,7 +209,7 @@ namespace Gremlin.Net.Process.Traversal
         ///     Gets the next result from the traversal.
         /// </summary>
         /// <returns>The result.</returns>
-        public E Next()
+        public E? Next()
         {
             MoveNext();
             return Current;
@@ -206,7 +220,7 @@ namespace Gremlin.Net.Process.Traversal
         /// </summary>
         /// <param name="amount">The number of results to get.</param>
         /// <returns>The n-results.</returns>
-        public IEnumerable<E> Next(int amount)
+        public IEnumerable<E?> Next(int amount)
         {
             for (var i = 0; i < amount; i++)
                 yield return Next();
@@ -239,9 +253,9 @@ namespace Gremlin.Net.Process.Traversal
         ///     Puts all the results into a <see cref="List{T}" />.
         /// </summary>
         /// <returns>The results in a list.</returns>
-        public IList<E> ToList()
+        public IList<E?> ToList()
         {
-            var objs = new List<E>();
+            var objs = new List<E?>();
             while (MoveNext())
                 objs.Add(Current);
             return objs;
@@ -251,9 +265,9 @@ namespace Gremlin.Net.Process.Traversal
         ///     Puts all the results into a <see cref="HashSet{T}" />.
         /// </summary>
         /// <returns>The results in a set.</returns>
-        public ISet<E> ToSet()
+        public ISet<E?> ToSet()
         {
-            var objs = new HashSet<E>();
+            var objs = new HashSet<E?>();
             while (MoveNext())
                 objs.Add(Current);
             return objs;

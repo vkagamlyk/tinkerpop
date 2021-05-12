@@ -410,6 +410,19 @@ namespace Gremlin.Net.UnitTest.Structure.IO.GraphSON
                 "{\"@type\":\"g:VertexProperty\",\"@value\":{\"id\":\"blah\",\"label\":\"keyA\",\"value\":true,\"vertex\":\"stephen\"}}";
             Assert.Equal(expected, graphSON);
         }
+        
+        [Theory, MemberData(nameof(Versions))]
+        public void ShouldSerializeVertexPropertyWithoutVertex(int version)
+        {
+            var writer = CreateGraphSONWriter(version);
+            var vertexProperty = new VertexProperty("blah", "keyA", true);
+
+            var graphSON = writer.WriteObject(vertexProperty);
+
+            const string expected =
+                "{\"@type\":\"g:VertexProperty\",\"@value\":{\"id\":\"blah\",\"label\":\"keyA\",\"value\":true}}";
+            Assert.Equal(expected, graphSON);
+        }
 
         [Theory, MemberData(nameof(Versions))]
         public void ShouldSerializeGuid(int version)

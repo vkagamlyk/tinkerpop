@@ -42,10 +42,10 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         public async Task WriteValueAsync(RequestMessage requestMessage, MemoryStream stream, GraphBinaryWriter writer)
         {
             await stream.WriteByteAsync(GraphBinaryWriter.VersionByte).ConfigureAwait(false);
-            await writer.WriteValueAsync(requestMessage.RequestId, stream, false).ConfigureAwait(false);
-            await writer.WriteValueAsync(requestMessage.Operation, stream, false).ConfigureAwait(false);
-            await writer.WriteValueAsync(requestMessage.Processor, stream, false).ConfigureAwait(false);
-            await writer.WriteValueAsync(requestMessage.Arguments, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(requestMessage.RequestId, stream).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(requestMessage.Operation, stream).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(requestMessage.Processor, stream).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(requestMessage.Arguments, stream).ConfigureAwait(false);
         }
     }
 }

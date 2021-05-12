@@ -42,7 +42,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         protected override async Task WriteValueAsync(VertexProperty value, Stream stream, GraphBinaryWriter writer)
         {
             await writer.WriteAsync(value.Id, stream).ConfigureAwait(false);
-            await writer.WriteValueAsync(value.Label, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Label, stream).ConfigureAwait(false);
             await writer.WriteAsync(value.Value, stream).ConfigureAwait(false);
             
             // placeholder for the parent vertex
@@ -57,7 +57,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         protected override async Task<VertexProperty> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
             var vp = new VertexProperty(await reader.ReadAsync(stream).ConfigureAwait(false),
-                (string) await reader.ReadValueAsync<string>(stream, false).ConfigureAwait(false),
+                (string) await reader.ReadNonNullableValueAsync<string>(stream).ConfigureAwait(false),
                 await reader.ReadAsync(stream).ConfigureAwait(false));
 
             // discard the parent vertex

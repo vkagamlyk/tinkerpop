@@ -24,6 +24,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Gremlin.Net.Driver;
 
 namespace Gremlin.Net.Structure.IO.GraphSON
 {
@@ -39,7 +40,8 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         /// <param name="value">The value to transform.</param>
         /// <param name="prefix">A namespace prefix for the typename.</param>
         /// <returns>The GraphSON representation including type information.</returns>
-        public static Dictionary<string, dynamic> ToTypedValue(string typename, dynamic value, string prefix = "g")
+        public static Dictionary<string, dynamic> ToTypedValue(string typename, dynamic? value,
+            string prefix = GraphSONTokens.GremlinTypeNamespace)
         {
             var typedValue = new Dictionary<string, dynamic>
             {

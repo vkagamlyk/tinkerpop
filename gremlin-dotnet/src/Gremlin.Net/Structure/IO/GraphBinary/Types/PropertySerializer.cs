@@ -41,7 +41,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task WriteValueAsync(Property value, Stream stream, GraphBinaryWriter writer)
         {
-            await writer.WriteValueAsync(value.Key, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Key, stream).ConfigureAwait(false);
             await writer.WriteAsync(value.Value, stream).ConfigureAwait(false);
             
             // placeholder for the parent element
@@ -51,7 +51,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task<Property> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var p = new Property((string) await reader.ReadValueAsync<string>(stream, false).ConfigureAwait(false),
+            var p = new Property((string) await reader.ReadNonNullableValueAsync<string>(stream).ConfigureAwait(false),
                 await reader.ReadAsync(stream).ConfigureAwait(false));
 
             // discard parent element

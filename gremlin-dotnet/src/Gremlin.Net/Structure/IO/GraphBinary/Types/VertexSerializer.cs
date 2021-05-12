@@ -42,7 +42,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         protected override async Task WriteValueAsync(Vertex value, Stream stream, GraphBinaryWriter writer)
         {
             await writer.WriteAsync(value.Id, stream).ConfigureAwait(false);
-            await writer.WriteValueAsync(value.Label, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Label, stream).ConfigureAwait(false);
             await writer.WriteAsync(null, stream).ConfigureAwait(false);
         }
 
@@ -51,7 +51,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         {
 
             var v = new Vertex(await reader.ReadAsync(stream).ConfigureAwait(false),
-                (string) await reader.ReadValueAsync<string>(stream, false).ConfigureAwait(false));
+                (string) await reader.ReadNonNullableValueAsync<string>(stream).ConfigureAwait(false));
             
             // discard properties
             await reader.ReadAsync(stream).ConfigureAwait(false);

@@ -23,6 +23,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 
@@ -36,8 +37,8 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         /// <summary>
         /// Contains the <see cref="IGraphSONDeserializer" /> instances by their type identifier. 
         /// </summary>
-        protected readonly Dictionary<string, IGraphSONDeserializer> Deserializers = new Dictionary
-            <string, IGraphSONDeserializer>
+        protected readonly Dictionary<string, IGraphSONDeserializer> Deserializers =
+            new Dictionary<string, IGraphSONDeserializer>
             {
                 {"g:Traverser", new TraverserReader()},
                 {"g:Int32", new Int32Converter()},
@@ -62,7 +63,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
                 {"gx:Byte", new ByteConverter()},
                 {"gx:ByteBuffer", new ByteBufferDeserializer()},
                 {"gx:Char", new CharConverter()},
-                {"gx:Int16", new Int16Converter() }
+                {"gx:Int16", new Int16Converter()}
             };
 
         /// <summary>
@@ -100,7 +101,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         /// </summary>
         /// <param name="graphSon">The GraphSON to deserialize.</param>
         /// <returns>The deserialized object.</returns>
-        public virtual dynamic ToObject(JsonElement graphSon)
+        public virtual dynamic? ToObject(JsonElement graphSon)
         {
             switch (graphSon.ValueKind)
             {
@@ -123,13 +124,15 @@ namespace Gremlin.Net.Structure.IO.GraphSON
 
             if (graphSon.TryGetProperty(GraphSONTokens.TypeKey, out var graphSonTypeProperty))
             {
-                return ReadValueOfType(graphSon, graphSonTypeProperty.GetString());
+                return ReadValueOfType(graphSon,
+                    graphSonTypeProperty.GetString() ??
+                    throw new IOException("Read GraphSON type key is not a string"));
             }
             return ReadDictionary(graphSon);
             
         }
 
-        private dynamic ReadValueOfType(JsonElement typedValue, string graphSONType)
+        private dynamic? ReadValueOfType(JsonElement typedValue, string graphSONType)
         {
             if (!Deserializers.TryGetValue(graphSONType, out var deserializer))
             {

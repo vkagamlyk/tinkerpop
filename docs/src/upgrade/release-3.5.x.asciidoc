@@ -21,6 +21,40 @@ image::https://raw.githubusercontent.com/apache/tinkerpop/master/docs/static/ima
 
 *The Sleeping Gremlin: No. 18 Entr'acte Symphonique*
 
+== TinkerPop 3.5.1
+
+*Release Date: NOT OFFICIALLY RELEASED YET*
+
+Please see the link:https://github.com/apache/tinkerpop/blob/3.5.1/CHANGELOG.asciidoc#release-3-5-1[changelog] for a complete list of all the modifications that are part of this release.
+
+=== Upgrading for Users
+
+==== Gremlin.NET: Nullable Reference Types
+
+Gremlin.NET now uses link:https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/nullable-reference-types[nullable reference types]
+to state wether an argument or a return value can be null or not. This should make it much less likely to get a
+`NullReferenceException` from Gremlin.NET.
+
+This change required to make some breaking changes but most users should not be affected by this as the breaking
+changes are limited to APIs that are mostly intended for graph driver providers.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2348[TINKERPOP-2348]
+
+=== Upgrading for Graph Driver Providers
+
+==== Gremlin.NET: Nullable Reference Types
+
+Enabling nullable reference types comes with some breaking changes in Gremlin.NET which can affect driver providers.
+
+GraphBinary APIs changed to make better use of nullable reference types. Instead of one method `WriteValueAsync` and
+one method `ReadValueAsync`, there are now methods `WriteNullableValueAsync` and `ReadNullableValueAsync` that allow
+null values and methods `WriteNonNullableValueAsync` and `ReadNonNullableValueAsync` that do not allow null values.
+
+Some `set` property accessors were removed from some pure data classes in the `Structure` and the `Driver.Messages`
+namespaces to initialize these properties directly from the constructor which ensures that they are really not `null`.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2348[TINKERPOP-2348]
+
 == TinkerPop 3.5.0
 
 *Release Date: May 3, 2021*

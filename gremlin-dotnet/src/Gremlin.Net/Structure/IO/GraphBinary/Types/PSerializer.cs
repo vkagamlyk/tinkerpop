@@ -23,6 +23,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Threading.Tasks;
 using Gremlin.Net.Process.Traversal;
@@ -48,8 +49,8 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
 
             var argsLength = value.Other == null ? args.Count : args.Count + 1;
             
-            await writer.WriteValueAsync(value.OperatorName, stream, false).ConfigureAwait(false);
-            await writer.WriteValueAsync(argsLength, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.OperatorName, stream).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(argsLength, stream).ConfigureAwait(false);
 
             foreach (var arg in args)
             {
@@ -65,10 +66,10 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task<P> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var operatorName = (string) await reader.ReadValueAsync<string>(stream, false).ConfigureAwait(false);
-            var argsLength = (int) await reader.ReadValueAsync<int>(stream, false).ConfigureAwait(false);
+            var operatorName = (string) await reader.ReadNonNullableValueAsync<string>(stream).ConfigureAwait(false);
+            var argsLength = (int) await reader.ReadNonNullableValueAsync<int>(stream).ConfigureAwait(false);
 
-            var args = new object[argsLength];
+            var args = new object?[argsLength];
             for (var i = 0; i < argsLength; i++)
             {
                 args[i] = await reader.ReadAsync(stream).ConfigureAwait(false);
@@ -76,24 +77,30 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
 
             if (operatorName == "and" || operatorName == "or")
             {
-                
-                return new P(operatorName, (P) args[0], (P) args[1]);
+                return new P(operatorName, SafelyConvertToP(args[0]), SafelyConvertToP(args[1]));
             }
 
             if (operatorName == "not")
             {
-                return new P(operatorName, (P) args[0]);
+                return new P(operatorName, SafelyConvertToP(args[0]));
             }
 
             if (argsLength == 1)
             {
                 if (DataType == DataType.TextP)
                 {
-                    return new TextP(operatorName, (string) args[0]);
+                    return new TextP(operatorName,
+                        (string?) args[0] ?? throw new IOException("Read null but expected a string"));
                 }
                 return new P(operatorName, args[0]);
             }
             return new P(operatorName, args);
+        }
+
+        private static P SafelyConvertToP([NotNull] object? pObject)
+        {
+            if (pObject == null) throw new IOException("Read null but expected P");
+            return (P) pObject;
         }
     }
 }

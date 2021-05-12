@@ -21,12 +21,6 @@
 
 #endregion
 
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-
 namespace Gremlin.Net.Process.Traversal
 {
 #pragma warning disable 1591
@@ -34,11 +28,11 @@ namespace Gremlin.Net.Process.Traversal
     public class PageRank
     {
         
-            public const String edges = "~tinkerpop.pageRank.edges";
+            public const string edges = "~tinkerpop.pageRank.edges";
         
-            public const String propertyName = "~tinkerpop.pageRank.propertyName";
+            public const string propertyName = "~tinkerpop.pageRank.propertyName";
         
-            public const String times = "~tinkerpop.pageRank.times";
+            public const string times = "~tinkerpop.pageRank.times";
         
     }
 

@@ -41,7 +41,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <param name="operatorName">The name of the predicate.</param>
         /// <param name="value">The value of the predicate.</param>
         /// <param name="other">An optional other predicate that is used as an argument for this predicate.</param>
-        public P(string operatorName, dynamic value, P other = null)
+        public P(string operatorName, dynamic? value, P? other = null)
         {
             OperatorName = operatorName;
             Value = value;
@@ -56,12 +56,12 @@ namespace Gremlin.Net.Process.Traversal
         /// <summary>
         ///     Gets the value of the predicate.
         /// </summary>
-        public dynamic Value { get; }
+        public dynamic? Value { get; }
 
         /// <summary>
         ///     Gets an optional other predicate that is used as an argument for this predicate.
         /// </summary>
-        public P Other { get; }
+        public P? Other { get; }
 
         /// <summary>
         ///     Returns a composed predicate that represents a logical AND of this predicate and another.

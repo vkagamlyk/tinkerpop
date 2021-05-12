@@ -37,13 +37,24 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// Reads only the value for a specific type <typeparamref name="T"/>.
         /// </summary>
         /// <param name="stream">The GraphBinary data to parse.</param>
-        /// <param name="nullable">Whether or not the value can be null.</param>
         /// <typeparam name="T">The type of the object to read.</typeparam>
         /// <returns>The read value.</returns>
-        public async Task<object> ReadValueAsync<T>(Stream stream, bool nullable)
+        public async Task<object?> ReadNullableValueAsync<T>(Stream stream)
         {
             var typedSerializer = _registry.GetSerializerFor(typeof(T));
-            return await typedSerializer.ReadValueAsync(stream, this, nullable).ConfigureAwait(false);
+            return await typedSerializer.ReadNullableValueAsync(stream, this).ConfigureAwait(false);
+        }
+        
+        /// <summary>
+        /// Reads only the value for a specific type <typeparamref name="T"/>.
+        /// </summary>
+        /// <param name="stream">The GraphBinary data to parse.</param>
+        /// <typeparam name="T">The type of the object to read.</typeparam>
+        /// <returns>The read value.</returns>
+        public async Task<object> ReadNonNullableValueAsync<T>(Stream stream)
+        {
+            var typedSerializer = _registry.GetSerializerFor(typeof(T));
+            return await typedSerializer.ReadNonNullableValueAsync(stream, this).ConfigureAwait(false);
         }
         
         /// <summary>
@@ -51,14 +62,14 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// </summary>
         /// <param name="stream">The GraphBinary data to parse.</param>
         /// <returns>The read value.</returns>
-        public async Task<object> ReadAsync(Stream stream)
+        public async Task<object?> ReadAsync(Stream stream)
         {
             var type = DataType.FromTypeCode(await stream.ReadByteAsync().ConfigureAwait(false));
 
             if (type == DataType.UnspecifiedNull)
             {
                 await stream.ReadByteAsync().ConfigureAwait(false); // read value byte to advance the index
-                return default; // should be null (TODO?)
+                return null;
             }
 
             var typedSerializer = _registry.GetSerializerFor(type);

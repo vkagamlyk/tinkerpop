@@ -39,7 +39,7 @@ namespace Gremlin.Net.Driver
         /// <param name="username">The username to submit on requests that require authentication.</param>
         /// <param name="password">The password to submit on requests that require authentication.</param>
         public GremlinServer(string hostname = "localhost", int port = 8182, bool enableSsl = false,
-            string username = null, string password = null)
+            string? username = null, string? password = null)
         {
             Uri = CreateUri(hostname, port, enableSsl);
             Username = username;
@@ -55,14 +55,14 @@ namespace Gremlin.Net.Driver
         /// <summary>
         ///     Gets the username to submit on requests that require authentication.
         /// </summary>
-        public string Username { get; }
+        public string? Username { get; }
 
         /// <summary>
         ///     Gets the password to submit on requests that require authentication.
         /// </summary>
-        public string Password { get; }
+        public string? Password { get; }
 
-        private Uri CreateUri(string hostname, int port, bool enableSsl)
+        private static Uri CreateUri(string hostname, int port, bool enableSsl)
         {
             var scheme = enableSsl ? "wss" : "ws";
             return new Uri($"{scheme}://{hostname}:{port}/gremlin");

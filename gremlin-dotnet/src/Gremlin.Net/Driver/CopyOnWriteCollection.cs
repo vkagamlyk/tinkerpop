@@ -36,7 +36,7 @@ namespace Gremlin.Net.Driver
 
         public void AddRange(T[] items)
         {
-            if (items == null || items.Length == 0)
+            if (items.Length == 0)
                 return;
             lock (_writeLock)
             {

@@ -22,6 +22,7 @@
 #endregion
 
 using System.Collections.Generic;
+using System.IO;
 using Gremlin.Net.Process.Traversal;
 
 namespace Gremlin.Net.Structure.IO.GraphSON
@@ -32,7 +33,13 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         {
             ITraversal traversal = objectData;
             var bytecode = traversal.Bytecode;
-            return writer.ToDict(bytecode);
+            var dictifiedObject = writer.ToDict(bytecode);
+            if (dictifiedObject == null)
+            {
+                throw new IOException(
+                    $"Could not write the traversal as its {nameof(ITraversal.Bytecode)} was written as null");
+            }
+            return dictifiedObject;
         }
     }
 }

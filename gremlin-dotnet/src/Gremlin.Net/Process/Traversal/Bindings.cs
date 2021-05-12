@@ -46,6 +46,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <param name="value">The value to which the variable should be bound.</param>
         /// <returns>The bound value.</returns>
         public TV Of<TV>(string variable, TV value)
+            where TV : notnull
         {
             var dict = BoundVariableByValue.Value;
             if (dict == null)
@@ -57,7 +58,8 @@ namespace Gremlin.Net.Process.Traversal
             return value;
         }
 
-        internal static string GetBoundVariable<TV>(TV value)
+        internal static string? GetBoundVariable<TV>(TV value)
+            where TV : notnull
         {
             var dict = BoundVariableByValue.Value;
             if (dict == null)

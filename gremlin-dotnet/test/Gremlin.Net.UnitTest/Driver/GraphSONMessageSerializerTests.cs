@@ -22,6 +22,7 @@
 #endregion
 
 using System;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Gremlin.Net.Structure.IO.GraphSON;
@@ -40,31 +41,29 @@ namespace Gremlin.Net.UnitTest.Driver
         }
 
         [Fact]
-        public async Task EmptyArrayDeserializedIntoNull()
+        public async Task DeserializingEmptyArrayThrows()
         {
             var sut = CreateMessageSerializer();
-
-            var result = await sut.DeserializeMessageAsync(new byte[0]);
             
-            Assert.Null(result);
+            await Assert.ThrowsAsync<IOException>(()=> sut.DeserializeMessageAsync(new byte[0]));
         }
 
         [Fact]
-        public async Task EmptyStringDeserializedIntoNull()
+        public async Task DeserializingEmptyStringThrows()
         {
             var sut = CreateMessageSerializer();
             var ofEmpty = Encoding.UTF8.GetBytes("");
 
-            Assert.Null(await sut.DeserializeMessageAsync(ofEmpty));
+            await Assert.ThrowsAsync<IOException>(()=> sut.DeserializeMessageAsync(ofEmpty));
         }
 
         [Fact]
-        public async Task JsonNullDeserializedIntoNull()
+        public async Task DeserializingJsonNullThrows()
         {
             var sut = CreateMessageSerializer();
             var ofNull = Encoding.UTF8.GetBytes("null");
 
-            Assert.Null(await sut.DeserializeMessageAsync(ofNull));
+            await Assert.ThrowsAsync<IOException>(()=> sut.DeserializeMessageAsync(ofNull));
         }
 
         private static GraphSONMessageSerializer CreateMessageSerializer()

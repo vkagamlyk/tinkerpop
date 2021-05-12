@@ -43,14 +43,14 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         protected override async Task WriteValueAsync(string value, Stream stream, GraphBinaryWriter writer)
         {
             var bytes = Encoding.UTF8.GetBytes(value);
-            await writer.WriteValueAsync(bytes.Length, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(bytes.Length, stream).ConfigureAwait(false);
             await stream.WriteAsync(bytes).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         protected override async Task<string> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var length = (int) await reader.ReadValueAsync<int>(stream, false).ConfigureAwait(false);
+            var length = (int) await reader.ReadNonNullableValueAsync<int>(stream).ConfigureAwait(false);
             var bytes = new byte[length];
             await stream.ReadAsync(bytes, 0, length).ConfigureAwait(false);
             return Encoding.UTF8.GetString(bytes);

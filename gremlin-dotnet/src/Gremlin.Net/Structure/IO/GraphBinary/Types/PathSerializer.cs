@@ -49,7 +49,8 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task<Path> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var readLabelObjects = (List<object>) await reader.ReadAsync(stream).ConfigureAwait(false);
+            var readLabelObjects = (List<object>?) await reader.ReadAsync(stream).ConfigureAwait(false);
+            if (readLabelObjects == null) throw new IOException("Read null, but expected a list of labels");
             var labels = new List<ISet<string>>();
             foreach (var labelObjectList in readLabelObjects)
             {
@@ -61,8 +62,8 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
                 labels.Add(labelSet);
             }
             
-            var objects = (List<object>) await reader.ReadAsync(stream).ConfigureAwait(false);
-            
+            var objects = (List<object?>?) await reader.ReadAsync(stream).ConfigureAwait(false);
+            if (objects == null) throw new IOException("Read null, but expected a list of objects");
             return new Path(labels, objects);
         }
     }

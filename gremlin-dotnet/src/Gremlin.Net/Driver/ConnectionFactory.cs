@@ -1,4 +1,4 @@
-#region License
+﻿#region License
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -28,13 +28,13 @@ namespace Gremlin.Net.Driver
 {
     internal class ConnectionFactory : IConnectionFactory
     {
-        private readonly Action<ClientWebSocketOptions> _webSocketConfiguration;
+        private readonly Action<ClientWebSocketOptions>? _webSocketConfiguration;
         private readonly GremlinServer _gremlinServer;
-        private readonly string _sessionId;
-        private IMessageSerializer _messageSerializer;
+        private readonly string? _sessionId;
+        private readonly IMessageSerializer _messageSerializer;
 
         public ConnectionFactory(GremlinServer gremlinServer, IMessageSerializer messageSerializer,
-            Action<ClientWebSocketOptions> webSocketConfiguration, string sessionId)
+            Action<ClientWebSocketOptions>? webSocketConfiguration, string? sessionId)
         {
             _gremlinServer = gremlinServer;
             _messageSerializer = messageSerializer;

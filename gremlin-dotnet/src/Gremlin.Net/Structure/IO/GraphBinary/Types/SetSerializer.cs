@@ -35,7 +35,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
     /// <typeparam name="TSet">The type of the set to serialize.</typeparam>
     /// <typeparam name="TMember">The type of elements in the set.</typeparam>
     public class SetSerializer<TSet, TMember> : SimpleTypeSerializer<TSet>
-        where TSet : ISet<TMember>, new()
+        where TSet : ISet<TMember?>, new()
     {
         /// <summary>
         ///     Initializes a new instance of the <see cref="SetSerializer{TSet,TMember}" /> class.
@@ -50,7 +50,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
             var enumerable = (IEnumerable) value;
             var list = enumerable.Cast<object>().ToList();
 
-            await writer.WriteValueAsync(list.Count, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(list.Count, stream).ConfigureAwait(false);
             
             foreach (var item in list)
             {
@@ -61,11 +61,11 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task<TSet> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var length = (int) await reader.ReadValueAsync<int>(stream, false).ConfigureAwait(false);
+            var length = (int) await reader.ReadNonNullableValueAsync<int>(stream).ConfigureAwait(false);
             var result = new TSet();
             for (var i = 0; i < length; i++)
             {
-                result.Add((TMember) await reader.ReadAsync(stream).ConfigureAwait(false));
+                result.Add((TMember?) await reader.ReadAsync(stream).ConfigureAwait(false));
             }
 
             return result;

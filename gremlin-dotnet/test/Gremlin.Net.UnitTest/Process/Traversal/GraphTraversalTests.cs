@@ -22,22 +22,19 @@
 #endregion
 
 using System;
-using System.Collections.Generic;
-using System.IO;
+using Gremlin.Net.Process.Traversal;
+using Xunit;
 
-namespace Gremlin.Net.Structure.IO.GraphSON
+namespace Gremlin.Net.UnitTest.Process.Traversal
 {
-    internal class ClassSerializer : IGraphSONSerializer
+    public class GraphTraversalTests
     {
-        public Dictionary<string, dynamic> Dictify(dynamic objectData, GraphSONWriter writer)
+        [Fact]
+        public void ShouldThrowOnIterationIfNoStrategiesConfigured()
         {
-            Type type = objectData;
-            var dictifiedObject = writer.ToDict(Activator.CreateInstance(type));
-            if (dictifiedObject == null)
-            {
-                throw new IOException($"Could not write type {objectData}, maybe it is not a supported type");
-            }
-            return dictifiedObject;
+            var g = AnonymousTraversalSource.Traversal();
+
+            Assert.Throws<InvalidOperationException>(() => g.V().Next());
         }
     }
 }

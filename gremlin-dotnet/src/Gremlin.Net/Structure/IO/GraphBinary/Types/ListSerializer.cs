@@ -31,7 +31,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
     /// A generic list serializer.
     /// </summary>
     /// <typeparam name="TMember">The type of elements in the list.</typeparam>
-    public class ListSerializer<TMember> : SimpleTypeSerializer<IList<TMember>>
+    public class ListSerializer<TMember> : SimpleTypeSerializer<IList<TMember?>>
     {
         /// <summary>
         ///     Initializes a new instance of the <see cref="ListSerializer{TList}" /> class.
@@ -41,9 +41,9 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         }
 
         /// <inheritdoc />
-        protected override async Task WriteValueAsync(IList<TMember> value, Stream stream, GraphBinaryWriter writer)
+        protected override async Task WriteValueAsync(IList<TMember?> value, Stream stream, GraphBinaryWriter writer)
         {
-            await writer.WriteValueAsync(value.Count, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Count, stream).ConfigureAwait(false);
             
             foreach (var item in value)
             {
@@ -52,13 +52,13 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         }
 
         /// <inheritdoc />
-        protected override async Task<IList<TMember>> ReadValueAsync(Stream stream, GraphBinaryReader reader)
+        protected override async Task<IList<TMember?>> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var length = (int) await reader.ReadValueAsync<int>(stream, false).ConfigureAwait(false);
-            var result = new List<TMember>(length);
+            var length = (int) await reader.ReadNonNullableValueAsync<int>(stream).ConfigureAwait(false);
+            var result = new List<TMember?>(length);
             for (var i = 0; i < length; i++)
             {
-                result.Add((TMember) await reader.ReadAsync(stream).ConfigureAwait(false));
+                result.Add((TMember?) await reader.ReadAsync(stream).ConfigureAwait(false));
             }
 
             return result;

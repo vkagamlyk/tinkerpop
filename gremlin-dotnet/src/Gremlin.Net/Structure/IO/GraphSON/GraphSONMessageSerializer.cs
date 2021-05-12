@@ -23,6 +23,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -72,12 +73,12 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         public virtual Task<ResponseMessage<List<object>>> DeserializeMessageAsync(byte[] message)
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
-            if (message.Length == 0) return Task.FromResult<ResponseMessage<List<object>>>(null);
+            if (message.Length == 0) throw new IOException("Cannot deserialize an empty response message");
             
             var reader = new Utf8JsonReader(message);
             var responseMessage =
                 JsonSerializer.Deserialize<ResponseMessage<JsonElement>>(ref reader, JsonDeserializingOptions);
-            if (responseMessage == null) return Task.FromResult<ResponseMessage<List<object>>>(null);;
+            if (responseMessage == null) throw new IOException("Message could not be deserialized / is empty");
             
             var data = _graphSONReader.ToObject(responseMessage.Result.Data);
             return Task.FromResult(CopyMessageWithNewData(responseMessage, data));
@@ -86,16 +87,8 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         private static ResponseMessage<List<object>> CopyMessageWithNewData(ResponseMessage<JsonElement> origMsg,
             dynamic data)
         {
-            return new ResponseMessage<List<object>>
-            {
-                RequestId = origMsg.RequestId,
-                Status = origMsg.Status,
-                Result = new ResponseResult<List<object>>
-                {
-                    Data = data == null ? null : new List<object>(data),
-                    Meta = origMsg.Result.Meta
-                }
-            };
+            return new ResponseMessage<List<object>>(origMsg.RequestId, origMsg.Status, new ResponseResult<List<object>>(
+                data == null ? null : new List<object>(data), origMsg.Result.Meta));
         }
     }
 }

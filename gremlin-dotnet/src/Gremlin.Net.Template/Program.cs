@@ -37,15 +37,13 @@ namespace Gremlin.Net.Template
 
         private static void Main()
         {
-            using (var client = new GremlinClient(new GremlinServer(GremlinServerHostname, GremlinServerPort)))
+            using var client = new GremlinClient(new GremlinServer(GremlinServerHostname, GremlinServerPort));
+            var g = Traversal().WithRemote(new DriverRemoteConnection(client));
+            var service = new Service(g);
+            var creators = service.FindCreatorsOfSoftware("lop");
+            foreach (var c in creators)
             {
-                var g = Traversal().WithRemote(new DriverRemoteConnection(client));
-                var service = new Service(g);
-                var creators = service.FindCreatorsOfSoftware("lop");
-                foreach (var c in creators)
-                {
-                    Console.WriteLine(c);
-                }
+                Console.WriteLine(c);
             }
         }
     }

@@ -21,12 +21,6 @@
 
 #endregion
 
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-
 namespace Gremlin.Net.Process.Traversal.Step.Util
 {
 #pragma warning disable 1591
@@ -36,8 +30,6 @@ namespace Gremlin.Net.Process.Traversal.Step.Util
     /// </summary>
     public class WithOptions
     {
-
-
         public static readonly string Tokens = "~tinkerpop.valueMap.tokens";
 
 

@@ -21,12 +21,6 @@
 
 #endregion
 
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-
 namespace Gremlin.Net.Process.Traversal
 {
 #pragma warning disable 1591
@@ -34,11 +28,11 @@ namespace Gremlin.Net.Process.Traversal
     public class PeerPressure
     {
         
-            public const String edges = "~tinkerpop.peerPressure.edges";
+            public const string edges = "~tinkerpop.peerPressure.edges";
         
-            public const String propertyName = "~tinkerpop.peerPressure.propertyName";
+            public const string propertyName = "~tinkerpop.peerPressure.propertyName";
         
-            public const String times = "~tinkerpop.peerPressure.times";
+            public const string times = "~tinkerpop.peerPressure.times";
         
     }
 

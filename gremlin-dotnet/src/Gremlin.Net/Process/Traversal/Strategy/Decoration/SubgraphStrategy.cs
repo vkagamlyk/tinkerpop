@@ -43,8 +43,8 @@ namespace Gremlin.Net.Process.Traversal.Strategy.Decoration
         /// <param name="vertices">Constrains vertices for the <see cref="ITraversal" />.</param>
         /// <param name="edges">Constrains edges for the <see cref="ITraversal" />.</param>
         /// <param name="vertexProperties">Constrains vertex properties for the <see cref="ITraversal" />.</param>
-        public SubgraphStrategy(ITraversal vertices = null, ITraversal edges = null,
-            ITraversal vertexProperties = null)
+        public SubgraphStrategy(ITraversal? vertices = null, ITraversal? edges = null,
+            ITraversal? vertexProperties = null)
             : this()
         {
             if (vertices != null)

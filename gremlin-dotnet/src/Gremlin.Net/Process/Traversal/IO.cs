@@ -34,17 +34,17 @@ namespace Gremlin.Net.Process.Traversal
     public class IO
     {
         
-            public const String graphml = "graphml";
+            public const string graphml = "graphml";
         
-            public const String graphson = "graphson";
+            public const string graphson = "graphson";
         
-            public const String gryo = "gryo";
+            public const string gryo = "gryo";
         
-            public const String reader = "~tinkerpop.io.reader";
+            public const string reader = "~tinkerpop.io.reader";
         
-            public const String registry = "~tinkerpop.io.registry";
+            public const string registry = "~tinkerpop.io.registry";
         
-            public const String writer = "~tinkerpop.io.writer";
+            public const string writer = "~tinkerpop.io.writer";
         
     }
 

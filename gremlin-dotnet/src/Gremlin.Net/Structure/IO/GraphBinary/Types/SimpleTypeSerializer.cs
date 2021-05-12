@@ -45,30 +45,27 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         public DataType DataType { get; }
 
         /// <inheritdoc />
-        public async Task WriteAsync(object value, Stream stream, GraphBinaryWriter writer)
+        public async Task WriteAsync(object? value, Stream stream, GraphBinaryWriter writer)
         {
-            await WriteValueAsync((T) value, stream, writer, true).ConfigureAwait(false);
+            await WriteNullableValueAsync((T?) value, stream, writer).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task WriteValueAsync(object value, Stream stream, GraphBinaryWriter writer, bool nullable)
+        public async Task WriteNullableValueAsync(object? value, Stream stream, GraphBinaryWriter writer)
         {
             if (value == null)
             {
-                if (!nullable)
-                {
-                    throw new IOException("Unexpected null value when nullable is false");
-                }
-
                 await writer.WriteValueFlagNullAsync(stream).ConfigureAwait(false);
                 return;
             }
 
-            if (nullable)
-            {
-                await writer.WriteValueFlagNoneAsync(stream).ConfigureAwait(false);
-            }
-
+            await writer.WriteValueFlagNoneAsync(stream).ConfigureAwait(false);
+            await WriteValueAsync((T) value, stream, writer).ConfigureAwait(false);
+        }
+        
+        /// <inheritdoc />
+        public async Task WriteNonNullableValueAsync(object value, Stream stream, GraphBinaryWriter writer)
+        {
             await WriteValueAsync((T) value, stream, writer).ConfigureAwait(false);
         }
 
@@ -82,24 +79,27 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         protected abstract Task WriteValueAsync(T value, Stream stream, GraphBinaryWriter writer);
 
         /// <inheritdoc />
-        public async Task<object> ReadAsync(Stream stream, GraphBinaryReader reader)
+        public async Task<object?> ReadAsync(Stream stream, GraphBinaryReader reader)
         {
-            return await ReadValueAsync(stream, reader, true).ConfigureAwait(false);
+            return await ReadNullableValueAsync(stream, reader).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task<object> ReadValueAsync(Stream stream, GraphBinaryReader reader, bool nullable)
+        public async Task<object?> ReadNullableValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            if (nullable)
+            var valueFlag = await stream.ReadByteAsync().ConfigureAwait(false);
+            if ((valueFlag & 1) == 1)
             {
-                var valueFlag = await stream.ReadByteAsync().ConfigureAwait(false);
-                if ((valueFlag & 1) == 1)
-                {
-                    return null;
-                }
+                return null;
             }
 
             return await ReadValueAsync(stream, reader).ConfigureAwait(false);
+        }
+        
+        /// <inheritdoc />
+        public async Task<object> ReadNonNullableValueAsync(Stream stream, GraphBinaryReader reader)
+        {
+            return (await ReadValueAsync(stream, reader).ConfigureAwait(false))!;
         }
 
         /// <summary>

@@ -22,22 +22,24 @@
 #endregion
 
 using System;
-using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
+using Gremlin.Net.Structure.IO.GraphBinary;
+using Xunit;
 
-namespace Gremlin.Net.Structure.IO.GraphSON
+namespace Gremlin.Net.UnitTest.Structure.IO.GraphBinary
 {
-    internal class ClassSerializer : IGraphSONSerializer
+    public class GraphBinaryWriterTests
     {
-        public Dictionary<string, dynamic> Dictify(dynamic objectData, GraphSONWriter writer)
+        [Fact]
+        public async Task WriteNullableValueAsyncShouldThrowForNullValue()
         {
-            Type type = objectData;
-            var dictifiedObject = writer.ToDict(Activator.CreateInstance(type));
-            if (dictifiedObject == null)
-            {
-                throw new IOException($"Could not write type {objectData}, maybe it is not a supported type");
-            }
-            return dictifiedObject;
+            var writer = CreateWriter();
+
+            await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                writer.WriteNonNullableValueAsync(null!, new MemoryStream()));
         }
+
+        private static GraphBinaryWriter CreateWriter() => new();
     }
 }

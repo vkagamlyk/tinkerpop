@@ -43,7 +43,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task WriteValueAsync(ITraversal value, Stream stream, GraphBinaryWriter writer)
         {
-            await writer.WriteValueAsync(value.Bytecode, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Bytecode, stream).ConfigureAwait(false);
         }
 
         /// <summary>

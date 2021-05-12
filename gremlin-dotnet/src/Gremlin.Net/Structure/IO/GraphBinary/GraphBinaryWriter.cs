@@ -21,6 +21,7 @@
 
 #endregion
 
+using System;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -44,28 +45,36 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         private readonly TypeSerializerRegistry _registry = new TypeSerializerRegistry();
 
         /// <summary>
-        /// Writes a value without including type information.
+        /// Writes a nullable value without including type information.
         /// </summary>
         /// <param name="value">The value to write.</param>
         /// <param name="stream">The stream to write to.</param>
-        /// <param name="nullable">Whether or not the value can be null.</param>
         /// <returns>A task that represents the asynchronous write operation.</returns>
-        public async Task WriteValueAsync(object value, Stream stream, bool nullable)
+        public async Task WriteNullableValueAsync(object? value, Stream stream)
         {
             if (value == null)
             {
-                if (!nullable)
-                {
-                    throw new IOException("Unexpected null value when nullable is false");
-                }
-
                 await WriteValueFlagNullAsync(stream).ConfigureAwait(false);
                 return;
             }
             
             var valueType = value.GetType();
             var serializer = _registry.GetSerializerFor(valueType);
-            await serializer.WriteValueAsync(value, stream, this, nullable).ConfigureAwait(false);
+            await serializer.WriteNullableValueAsync(value, stream, this).ConfigureAwait(false);
+        }
+        
+        /// <summary>
+        /// Writes a non-nullable value without including type information.
+        /// </summary>
+        /// <param name="value">The value to write.</param>
+        /// <param name="stream">The stream to write to.</param>
+        /// <returns>A task that represents the asynchronous write operation.</returns>
+        public async Task WriteNonNullableValueAsync(object value, Stream stream)
+        {
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            var valueType = value.GetType();
+            var serializer = _registry.GetSerializerFor(valueType);
+            await serializer.WriteNonNullableValueAsync(value, stream, this).ConfigureAwait(false);
         }
         
         /// <summary>
@@ -74,7 +83,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// <param name="value">The value to write.</param>
         /// <param name="stream">The stream to write to.</param>
         /// <returns>A task that represents the asynchronous write operation.</returns>
-        public async Task WriteAsync(object value, Stream stream)
+        public async Task WriteAsync(object? value, Stream stream)
         {
             if (value == null)
             {

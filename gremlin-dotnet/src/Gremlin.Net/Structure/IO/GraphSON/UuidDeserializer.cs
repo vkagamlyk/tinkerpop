@@ -22,6 +22,7 @@
 #endregion
 
 using System;
+using System.IO;
 using System.Text.Json;
 
 namespace Gremlin.Net.Structure.IO.GraphSON
@@ -32,7 +33,8 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         {
             var uuidString = graphsonObject.GetString();
 
-            return Guid.Parse(uuidString);
+            return Guid.Parse(
+                uuidString ?? throw new IOException("Read null but expected a GUID string representation"));
         }
     }
 }

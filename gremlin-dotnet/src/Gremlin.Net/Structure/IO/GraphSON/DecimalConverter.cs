@@ -21,7 +21,9 @@
 
 #endregion
 
+using System;
 using System.Globalization;
+using System.IO;
 using System.Text.Json;
 
 namespace Gremlin.Net.Structure.IO.GraphSON
@@ -35,7 +37,9 @@ namespace Gremlin.Net.Structure.IO.GraphSON
         {
             if (graphson.ValueKind == JsonValueKind.String)
             {
-                return decimal.Parse(graphson.GetString(), CultureInfo.InvariantCulture);
+                return decimal.Parse(
+                    graphson.GetString() ?? throw new IOException("Read null but expected a decimal string"),
+                    CultureInfo.InvariantCulture);
             }
             return graphson.GetDecimal();
         }

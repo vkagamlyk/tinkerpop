@@ -408,7 +408,7 @@ namespace Gremlin.Net.UnitTest.Structure
         {
             var path = new Path(new List<ISet<string>>(), new List<object>());
 
-            var success = path.TryGetValue("unknownKey", out object _);
+            var success = path.TryGetValue("unknownKey", out _);
 
             Assert.False(success);
         }

@@ -38,15 +38,17 @@ namespace Gremlin.Net.Driver.Remote
     {
         private readonly IGremlinClient _client;
         private readonly string _traversalSource;
-        
+
         /// <summary>
         /// Filter on these keys provided to OptionsStrategy and apply them to the request. Note that
         /// "scriptEvaluationTimeout" was deprecated in 3.3.9 but still supported in server implementations and will
         /// be removed in later versions. 
         /// </summary>
-        private readonly List<String> _allowedKeys = new List<string> 
-                    {Tokens.ArgsEvalTimeout, "scriptEvaluationTimeout", Tokens.ArgsBatchSize, 
-                     Tokens.RequestId, Tokens.ArgsUserAgent};
+        private readonly List<string> _allowedKeys = new List<string>
+        {
+            Tokens.ArgsEvalTimeout, "scriptEvaluationTimeout", Tokens.ArgsBatchSize,
+            Tokens.RequestId, Tokens.ArgsUserAgent
+        };
 
         /// <summary>
         ///     Initializes a new <see cref="IRemoteConnection" /> using "g" as the default remote TraversalSource name.
@@ -78,15 +80,15 @@ namespace Gremlin.Net.Driver.Remote
         {
             var requestId = Guid.NewGuid();
             var resultSet = await SubmitBytecodeAsync(requestId, bytecode).ConfigureAwait(false);
-            return new DriverRemoteTraversal<S, E>(_client, requestId, resultSet);
+            return new DriverRemoteTraversal<S, E>(resultSet);
         }
 
-        private async Task<IEnumerable<Traverser>> SubmitBytecodeAsync(Guid requestid, Bytecode bytecode)
+        private async Task<IEnumerable<Traverser>> SubmitBytecodeAsync(Guid requestId, Bytecode bytecode)
         {
             var requestMsg =
                 RequestMessage.Build(Tokens.OpsBytecode)
                     .Processor(Tokens.ProcessorTraversal)
-                    .OverrideRequestId(requestid)
+                    .OverrideRequestId(requestId)
                     .AddArgument(Tokens.ArgsGremlin, bytecode)
                     .AddArgument(Tokens.ArgsAliases, new Dictionary<string, string> {{"g", _traversalSource}});
 
@@ -94,8 +96,8 @@ namespace Gremlin.Net.Driver.Remote
                 s => s.OperatorName == "withStrategies" && s.Arguments[0] is OptionsStrategy);
             if (optionsStrategyInst != null)
             {
-                OptionsStrategy optionsStrategy = optionsStrategyInst.Arguments[0];
-                foreach (KeyValuePair<string,dynamic> pair in optionsStrategy.Configuration)
+                OptionsStrategy optionsStrategy = optionsStrategyInst.Arguments[0]!;
+                foreach (var pair in optionsStrategy.Configuration)
                 {
                     if (_allowedKeys.Contains(pair.Key))
                     {
@@ -103,14 +105,14 @@ namespace Gremlin.Net.Driver.Remote
                     }
                 }
             }
-            
+
             return await _client.SubmitAsync<Traverser>(requestMsg.Create()).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public void Dispose()
         {
-            _client?.Dispose();
+            _client.Dispose();
         }
     }
 }

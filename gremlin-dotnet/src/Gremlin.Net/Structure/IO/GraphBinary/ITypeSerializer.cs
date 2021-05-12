@@ -46,14 +46,22 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         Task WriteAsync(object value, Stream stream, GraphBinaryWriter writer);
 
         /// <summary>
-        /// Writes the value to a stream, composed by the value flag and the sequence of bytes.
+        /// Writes the nullable value to a stream, composed by the value flag and the sequence of bytes.
         /// </summary>
         /// <param name="value">The value to write.</param>
         /// <param name="stream">The stream to write to.</param>
         /// <param name="writer">A <see cref="GraphBinaryWriter"/> that can be used to write nested values.</param>
-        /// <param name="nullable">Whether or not the value can be null.</param>
         /// <returns>A task that represents the asynchronous write operation.</returns>
-        Task WriteValueAsync(object value, Stream stream, GraphBinaryWriter writer, bool nullable);
+        Task WriteNullableValueAsync(object? value, Stream stream, GraphBinaryWriter writer);
+        
+        /// <summary>
+        /// Writes the non-nullable value to a stream, composed by the value flag and the sequence of bytes.
+        /// </summary>
+        /// <param name="value">The value to write.</param>
+        /// <param name="stream">The stream to write to.</param>
+        /// <param name="writer">A <see cref="GraphBinaryWriter"/> that can be used to write nested values.</param>
+        /// <returns>A task that represents the asynchronous write operation.</returns>
+        Task WriteNonNullableValueAsync(object value, Stream stream, GraphBinaryWriter writer);
 
         /// <summary>
         /// Reads the type information and value from the stream.
@@ -61,15 +69,22 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// <param name="stream">The GraphBinary data to parse.</param>
         /// <param name="reader">A <see cref="GraphBinaryReader"/> that can be used to read nested values.</param>
         /// <returns>The read value.</returns>
-        Task<object> ReadAsync(Stream stream, GraphBinaryReader reader);
+        Task<object?> ReadAsync(Stream stream, GraphBinaryReader reader);
 
         /// <summary>
         /// Reads the value from the stream (not the type information).
         /// </summary>
         /// <param name="stream">The GraphBinary data to parse.</param>
         /// <param name="reader">A <see cref="GraphBinaryReader"/> that can be used to read nested values.</param>
-        /// <param name="nullable">Whether or not the value can be null.</param>
         /// <returns>The read value.</returns>
-        Task<object> ReadValueAsync(Stream stream, GraphBinaryReader reader, bool nullable);
+        Task<object?> ReadNullableValueAsync(Stream stream, GraphBinaryReader reader);
+        
+        /// <summary>
+        /// Reads the value from the stream (not the type information).
+        /// </summary>
+        /// <param name="stream">The GraphBinary data to parse.</param>
+        /// <param name="reader">A <see cref="GraphBinaryReader"/> that can be used to read nested values.</param>
+        /// <returns>The read value.</returns>
+        Task<object> ReadNonNullableValueAsync(Stream stream, GraphBinaryReader reader);
     }
 }

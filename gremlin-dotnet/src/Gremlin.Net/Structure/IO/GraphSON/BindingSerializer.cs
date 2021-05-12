@@ -30,7 +30,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
     {
         public Dictionary<string, dynamic> Dictify(dynamic objectData, GraphSONWriter writer)
         {
-            var binding = (Binding) objectData;
+            Binding binding =  objectData;
             var valueDict = new Dictionary<string, object>
             {
                 {"value", writer.ToDict(binding.Value)},

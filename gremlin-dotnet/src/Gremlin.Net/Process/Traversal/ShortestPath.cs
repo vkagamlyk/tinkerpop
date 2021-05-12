@@ -21,12 +21,6 @@
 
 #endregion
 
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-
 namespace Gremlin.Net.Process.Traversal
 {
 #pragma warning disable 1591
@@ -34,15 +28,15 @@ namespace Gremlin.Net.Process.Traversal
     public class ShortestPath
     {
         
-            public const String distance = "~tinkerpop.shortestPath.distance";
+            public const string distance = "~tinkerpop.shortestPath.distance";
         
-            public const String edges = "~tinkerpop.shortestPath.edges";
+            public const string edges = "~tinkerpop.shortestPath.edges";
         
-            public const String includeEdges = "~tinkerpop.shortestPath.includeEdges";
+            public const string includeEdges = "~tinkerpop.shortestPath.includeEdges";
         
-            public const String maxDistance = "~tinkerpop.shortestPath.maxDistance";
+            public const string maxDistance = "~tinkerpop.shortestPath.maxDistance";
         
-            public const String target = "~tinkerpop.shortestPath.target";
+            public const string target = "~tinkerpop.shortestPath.target";
         
     }
 

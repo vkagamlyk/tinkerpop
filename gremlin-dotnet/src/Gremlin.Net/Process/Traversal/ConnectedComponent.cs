@@ -21,12 +21,6 @@
 
 #endregion
 
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-
 namespace Gremlin.Net.Process.Traversal
 {
 #pragma warning disable 1591
@@ -34,11 +28,11 @@ namespace Gremlin.Net.Process.Traversal
     public class ConnectedComponent
     {
         
-            public const String component = "gremlin.connectedComponentVertexProgram.component";
+            public const string component = "gremlin.connectedComponentVertexProgram.component";
         
-            public const String edges = "~tinkerpop.connectedComponent.edges";
+            public const string edges = "~tinkerpop.connectedComponent.edges";
         
-            public const String propertyName = "~tinkerpop.connectedComponent.propertyName";
+            public const string propertyName = "~tinkerpop.connectedComponent.propertyName";
         
     }
 

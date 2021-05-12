@@ -42,19 +42,19 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task WriteValueAsync(ILambda value, Stream stream, GraphBinaryWriter writer)
         {
-            await writer.WriteValueAsync(value.Language, stream, false).ConfigureAwait(false);
-            await writer.WriteValueAsync(value.LambdaExpression, stream, false).ConfigureAwait(false);
-            await writer.WriteValueAsync(value.Arguments, stream, false).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Language, stream).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.LambdaExpression, stream).ConfigureAwait(false);
+            await writer.WriteNonNullableValueAsync(value.Arguments, stream).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         protected override async Task<ILambda> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var language = (string) await reader.ReadValueAsync<string>(stream, false).ConfigureAwait(false);
-            var expression = (string) await reader.ReadValueAsync<string>(stream, false).ConfigureAwait(false);
+            var language = (string) await reader.ReadNonNullableValueAsync<string>(stream).ConfigureAwait(false);
+            var expression = (string) await reader.ReadNonNullableValueAsync<string>(stream).ConfigureAwait(false);
             
             // discard the arguments
-            await reader.ReadValueAsync<int>(stream, false).ConfigureAwait(false);
+            await reader.ReadNonNullableValueAsync<int>(stream).ConfigureAwait(false);
 
             return new StringBasedLambda(expression, language);
         }

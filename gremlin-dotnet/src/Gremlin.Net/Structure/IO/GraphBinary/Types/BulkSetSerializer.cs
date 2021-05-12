@@ -53,13 +53,13 @@ namespace Gremlin.Net.Structure.IO.GraphBinary.Types
         /// <inheritdoc />
         protected override async Task<TList> ReadValueAsync(Stream stream, GraphBinaryReader reader)
         {
-            var length = (int) await reader.ReadValueAsync<int>(stream, false).ConfigureAwait(false);
+            var length = (int) await reader.ReadNonNullableValueAsync<int>(stream).ConfigureAwait(false);
 
             var result = new TList();
             for (var i = 0; i < length; i++)
             {
                 var value = await reader.ReadAsync(stream).ConfigureAwait(false);
-                var bulk = (long) await reader.ReadValueAsync<long>(stream, false).ConfigureAwait(false);
+                var bulk = (long) await reader.ReadNonNullableValueAsync<long>(stream).ConfigureAwait(false);
                 for (var j = 0; j < bulk; j++)
                 {
                     result.Add(value);

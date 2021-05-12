@@ -48,7 +48,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// </summary>
         /// <param name="reader">The <see cref="GraphBinaryReader"/> used to deserialize from GraphBinary.</param>
         /// <param name="writer">The <see cref="GraphBinaryWriter"/> used to serialize to GraphBinary.</param>
-        public GraphBinaryMessageSerializer(GraphBinaryReader reader = null, GraphBinaryWriter writer = null)
+        public GraphBinaryMessageSerializer(GraphBinaryReader? reader = null, GraphBinaryWriter? writer = null)
         {
             _reader = reader ?? new GraphBinaryReader();
             _writer = writer ?? new GraphBinaryWriter();

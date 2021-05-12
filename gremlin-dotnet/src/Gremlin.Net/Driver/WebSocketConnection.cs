@@ -35,7 +35,7 @@ namespace Gremlin.Net.Driver
         private const WebSocketMessageType MessageType = WebSocketMessageType.Binary;
         private readonly ClientWebSocket _client;
 
-        public WebSocketConnection(Action<ClientWebSocketOptions> webSocketConfiguration)
+        public WebSocketConnection(Action<ClientWebSocketOptions>? webSocketConfiguration)
         {
             _client = new ClientWebSocket();
             webSocketConfiguration?.Invoke(_client.Options);
@@ -75,20 +75,19 @@ namespace Gremlin.Net.Driver
 
         public async Task<byte[]> ReceiveMessageAsync()
         {
-            using (var ms = new MemoryStream())
+            using var ms = new MemoryStream();
+            WebSocketReceiveResult received;
+            var buffer = new byte[ReceiveBufferSize];
+
+            do
             {
-                WebSocketReceiveResult received;
-                var buffer = new byte[ReceiveBufferSize];
+                var receiveBuffer = new ArraySegment<byte>(buffer);
+                received = await _client.ReceiveAsync(receiveBuffer, CancellationToken.None).ConfigureAwait(false);
+                if (receiveBuffer.Array == null) break;
+                ms.Write(receiveBuffer.Array, receiveBuffer.Offset, received.Count);
+            } while (!received.EndOfMessage);
 
-                do
-                {
-                    var receiveBuffer = new ArraySegment<byte>(buffer);
-                    received = await _client.ReceiveAsync(receiveBuffer, CancellationToken.None).ConfigureAwait(false);
-                    ms.Write(receiveBuffer.Array, receiveBuffer.Offset, received.Count);
-                } while (!received.EndOfMessage);
-
-                return ms.ToArray();
-            }
+            return ms.ToArray();
         }
 
         public bool IsOpen => _client.State == WebSocketState.Open;

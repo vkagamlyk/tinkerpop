@@ -36,7 +36,7 @@ namespace Gremlin.Net.Structure.IO.GraphSON
             {
                 return EmptyList;
             }
-            var result = new object[graphsonObject.GetArrayLength()];
+            var result = new object?[graphsonObject.GetArrayLength()];
             for (var i = 0; i < result.Length; i++)
             {
                 result[i] = reader.ToObject(graphsonObject[i]);

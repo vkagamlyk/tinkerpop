@@ -102,7 +102,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         }
 
         /// <inheritdoc />
-        public bool Equals(DataType other)
+        public bool Equals(DataType? other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
@@ -110,7 +110,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         }
 
         /// <inheritdoc />
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
@@ -127,7 +127,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// <summary>
         /// Determines whether two specified <see cref="DataType"/> have the same values.
         /// </summary>
-        public static bool operator ==(DataType first, DataType second)
+        public static bool operator ==(DataType? first, DataType? second)
         {
             if (ReferenceEquals(null, first))
             {
@@ -145,7 +145,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
         /// <summary>
         /// Determines whether two specified <see cref="DataType"/> have different values.
         /// </summary>
-        public static bool operator !=(DataType first, DataType second)
+        public static bool operator !=(DataType? first, DataType? second)
         {
             return !(first == second);
         }

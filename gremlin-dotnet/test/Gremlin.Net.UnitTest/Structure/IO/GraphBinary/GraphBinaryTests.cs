@@ -77,7 +77,7 @@ namespace Gremlin.Net.UnitTest.Structure.IO.GraphBinary
             var writer = CreateGraphBinaryWriter();
             var serializationStream = new MemoryStream();
             
-            await writer.WriteValueAsync(value, serializationStream, false);
+            await writer.WriteNonNullableValueAsync(value, serializationStream);
 
             var serBytes = serializationStream.ToArray();
             Assert.Equal(expected, serBytes);
@@ -271,9 +271,9 @@ namespace Gremlin.Net.UnitTest.Structure.IO.GraphBinary
             var reader = CreateGraphBinaryReader();
             var serializationStream = new MemoryStream();
             
-            await writer.WriteValueAsync(expected, serializationStream, false);
+            await writer.WriteNonNullableValueAsync(expected, serializationStream);
             serializationStream.Position = 0;
-            var actual = await reader.ReadValueAsync<HashSet<string>>(serializationStream, false);
+            var actual = await reader.ReadNonNullableValueAsync<HashSet<string>>(serializationStream);
             
             Assert.Equal(expected, actual);
             Assert.Equal(expected.GetType(), actual.GetType());
@@ -350,9 +350,9 @@ namespace Gremlin.Net.UnitTest.Structure.IO.GraphBinary
             var reader = CreateGraphBinaryReader();
             var serializationStream = new MemoryStream();
             
-            await writer.WriteValueAsync(expected, serializationStream, false);
+            await writer.WriteNonNullableValueAsync(expected, serializationStream);
             serializationStream.Position = 0;
-            var actual = await reader.ReadValueAsync<Dictionary<string, int>>(serializationStream, false);
+            var actual = await reader.ReadNonNullableValueAsync<Dictionary<string, int>>(serializationStream);
             
             Assert.Equal(expected, actual);
             Assert.Equal(expected.GetType(), actual.GetType());
@@ -380,7 +380,7 @@ namespace Gremlin.Net.UnitTest.Structure.IO.GraphBinary
             var writer = CreateGraphBinaryWriter();
             var serializationStream = new MemoryStream();
 
-            await writer.WriteValueAsync(toSerialize, serializationStream, false);
+            await writer.WriteNonNullableValueAsync(toSerialize, serializationStream);
 
             var expected = new byte[]
                 {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
@@ -400,16 +400,6 @@ namespace Gremlin.Net.UnitTest.Structure.IO.GraphBinary
             var actual = await reader.ReadAsync(serializationStream);
             
             Assert.Equal(expected, actual);
-        }
-        
-        [Fact]
-        public async Task TestVertexWithNullLabel()
-        {
-            var expected = new Vertex(123, null);
-            var writer = CreateGraphBinaryWriter();
-            var serializationStream = new MemoryStream();
-            
-            await Assert.ThrowsAsync<IOException>(() => writer.WriteAsync(expected, serializationStream));
         }
         
         [Fact]
