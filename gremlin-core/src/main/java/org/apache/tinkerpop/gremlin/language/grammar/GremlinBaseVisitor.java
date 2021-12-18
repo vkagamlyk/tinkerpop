@@ -1503,4 +1503,10 @@ public class GremlinBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
 	public T visitIoOptionsStringConstant(final GremlinParser.IoOptionsStringConstantContext ctx) {
 		notImplemented(ctx); return null;
 	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public T visitVariable(final GremlinParser.VariableContext ctx) { notImplemented(ctx); return null; }
 }

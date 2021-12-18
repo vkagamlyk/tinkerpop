@@ -29,6 +29,8 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.util.empty.EmptyGraph;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -74,6 +76,8 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
      */
     final Supplier<GraphTraversal<?,?>> createAnonymous;
 
+    final Map<String, Object> bindings;
+
     /**
      * Constructs a new instance and is bound to an {@link EmptyGraph}. This form of construction is helpful for
      * generating {@link Bytecode} or for various forms of testing. {@link Traversal} instances constructed from this
@@ -81,6 +85,16 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
      */
     public GremlinAntlrToJava() {
         this(EmptyGraph.instance());
+    }
+
+    /**
+     * Constructs a new instance and is bound to an {@link EmptyGraph} and a set of bindings. This form of construction
+     * is helpful for generating {@link Bytecode} or for various forms of testing. {@link Traversal} instances
+     * constructed from this form will not be capable of iterating. Assumes that "g" is the name of the
+     * {@link GraphTraversalSource}.
+     */
+    public GremlinAntlrToJava(final Map<String, Object> bindings) {
+        this(GraphTraversalSourceVisitor.TRAVERSAL_ROOT, EmptyGraph.instance(), __::start, EmptyGraph.instance().traversal(), bindings);
     }
 
     /**
@@ -113,7 +127,7 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
      * {@link Traversal} from this "g" rather than from a fresh one constructed from the {@link Graph} instance.
      */
     protected GremlinAntlrToJava(final GraphTraversalSource g, final Supplier<GraphTraversal<?,?>> createAnonymous) {
-        this(GraphTraversalSourceVisitor.TRAVERSAL_ROOT, g.getGraph(), createAnonymous, g);
+        this(GraphTraversalSourceVisitor.TRAVERSAL_ROOT, g.getGraph(), createAnonymous, g, null);
     }
 
     /**
@@ -124,7 +138,7 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
      */
     protected GremlinAntlrToJava(final String traversalSourceName, final Graph graph,
                                  final Supplier<GraphTraversal<?,?>> createAnonymous) {
-        this(traversalSourceName, graph, createAnonymous, null);
+        this(traversalSourceName, graph, createAnonymous, null, null);
     }
 
     /**
@@ -136,7 +150,7 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
      */
     protected GremlinAntlrToJava(final String traversalSourceName, final Graph graph,
                                  final Supplier<GraphTraversal<?,?>> createAnonymous,
-                                 final GraphTraversalSource g) {
+                                 final GraphTraversalSource g, final Map<String, Object> bindings) {
         this.g = g;
         this.graph = graph;
         this.gvisitor = new GraphTraversalSourceVisitor(
@@ -146,6 +160,7 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
         this.genericLiteralVisitor = new GenericLiteralVisitor(this);
         this.traversalStrategyVisitor = new TraversalStrategyVisitor(this);
         this.createAnonymous = createAnonymous;
+        this.bindings = null == bindings ? Collections.emptyMap() : bindings;
     }
 
     /**

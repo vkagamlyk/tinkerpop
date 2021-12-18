@@ -25,9 +25,15 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
+
 public class GremlinQueryParser {
     private static final Logger log = LoggerFactory.getLogger(GremlinQueryParser.class);
     private static final GremlinErrorListener errorListener = new GremlinErrorListener();
+
+    public static Object parse(final String query, final Map<String, Object> bindings) throws Exception {
+        return parse(query, new GremlinAntlrToJava(bindings));
+    }
 
     public static Object parse(final String query) throws Exception {
         return parse(query, new GremlinAntlrToJava());

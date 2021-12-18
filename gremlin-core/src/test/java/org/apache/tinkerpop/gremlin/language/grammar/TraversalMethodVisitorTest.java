@@ -52,20 +52,20 @@ import static org.junit.Assert.assertEquals;
 public class TraversalMethodVisitorTest {
 
     private final GraphTraversalSource g = traversal().withEmbedded(EmptyGraph.instance());
-    private GremlinAntlrToJava antlrToLaunguage;
+    private GremlinAntlrToJava antlrToLanguage;
 
-    private Object eval(String query) {
+    private Object eval(final String query) {
         final GremlinLexer lexer = new GremlinLexer(CharStreams.fromString(query));
         final GremlinParser parser = new GremlinParser(new CommonTokenStream(lexer));
-        return antlrToLaunguage.visit(parser.queryList());
+        return antlrToLanguage.visit(parser.queryList());
     }
 
     @Before
     public void setup() throws Exception {
-        antlrToLaunguage = new GremlinAntlrToJava();
+        antlrToLanguage = new GremlinAntlrToJava();
     }
     
-    private void compare(Object expected, Object actual) {
+    private void compare(final Object expected, final Object actual) {
         assertEquals(((DefaultGraphTraversal) expected).asAdmin().getBytecode(),
                 ((DefaultGraphTraversal) actual).asAdmin().getBytecode());
     }

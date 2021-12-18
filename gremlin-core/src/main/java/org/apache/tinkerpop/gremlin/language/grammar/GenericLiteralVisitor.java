@@ -54,6 +54,17 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      * Parse a string literal context and return the string literal
      */
     public String getStringLiteral(final GremlinParser.StringLiteralContext stringLiteral) {
+        return getStringLiteral(stringLiteral, null);
+    }
+
+    /**
+     * Parse a string literal context and return the string literal.
+     */
+    public String getStringLiteral(final GremlinParser.StringLiteralContext stringLiteral, final GremlinAntlrToJava antlr) {
+        if (antlr != null && stringLiteral.variable() != null) {
+            final String varName = stringLiteral.variable().getText();
+            return tryBindings(antlr, varName);
+        }
         return (String) visitStringLiteral(stringLiteral);
     }
 
@@ -501,4 +512,11 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
         return result;
     }
 
+    private static <T> T tryBindings(final GremlinAntlrToJava antlr, final String varName) {
+        if (!antlr.bindings.containsKey(varName)) {
+            throw new UnboundIdentifierException(varName);
+        }
+
+        return (T) antlr.bindings.get(varName);
+    }
 }

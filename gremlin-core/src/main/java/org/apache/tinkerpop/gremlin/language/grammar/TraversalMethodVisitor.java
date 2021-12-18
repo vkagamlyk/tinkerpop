@@ -100,7 +100,7 @@ public class TraversalMethodVisitor extends TraversalRootVisitor<GraphTraversal>
         final int childIndexOfParameterEdgeLabel = 2;
         final GremlinParser.StringLiteralContext stringLiteralContext =
                 (GremlinParser.StringLiteralContext) (ctx.getChild(childIndexOfParameterEdgeLabel));
-        return this.graphTraversal.addE(antlr.genericLiteralVisitor.getStringLiteral(stringLiteralContext));
+        return this.graphTraversal.addE(antlr.genericLiteralVisitor.getStringLiteral(stringLiteralContext, antlr));
     }
 
     /**
