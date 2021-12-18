@@ -30,10 +30,13 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
     protected GraphTraversalSource traversalSource;
     protected GraphTraversal graphTraversal;
     protected final GremlinBaseVisitor<Traversal> anonymousVisitor;
+    protected final GremlinAntlrToJava antlr;
 
     public TraversalSourceSpawnMethodVisitor(final GraphTraversalSource traversalSource,
-                                             final GremlinBaseVisitor<Traversal> anonymousVisitor) {
+                                             final GremlinBaseVisitor<Traversal> anonymousVisitor,
+                                             final GremlinAntlrToJava antlr) {
         this.traversalSource = traversalSource;
+        this.antlr = antlr;
         this.anonymousVisitor = anonymousVisitor;
     }
 
@@ -51,7 +54,7 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
     @Override
     public GraphTraversal visitTraversalSourceSpawnMethod_addE(final GremlinParser.TraversalSourceSpawnMethod_addEContext ctx) {
         if (ctx.stringLiteral() != null) {
-            return this.traversalSource.addE(GenericLiteralVisitor.getStringLiteral(ctx.stringLiteral()));
+            return this.traversalSource.addE(antlr.genericLiteralVisitor.getStringLiteral(ctx.stringLiteral()));
         } else if (ctx.nestedTraversal() != null) {
             return this.traversalSource.addE(anonymousVisitor.visitNestedTraversal(ctx.nestedTraversal()));
         } else {
@@ -65,7 +68,7 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
     @Override
     public GraphTraversal visitTraversalSourceSpawnMethod_addV(final GremlinParser.TraversalSourceSpawnMethod_addVContext ctx) {
         if (ctx.stringLiteral() != null) {
-            return this.traversalSource.addV(GenericLiteralVisitor.getStringLiteral(ctx.stringLiteral()));
+            return this.traversalSource.addV(antlr.genericLiteralVisitor.getStringLiteral(ctx.stringLiteral()));
         } else if (ctx.nestedTraversal() != null) {
             return this.traversalSource.addV(anonymousVisitor.visitNestedTraversal(ctx.nestedTraversal()));
         } else {
@@ -79,7 +82,7 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
     @Override
     public GraphTraversal visitTraversalSourceSpawnMethod_E(final GremlinParser.TraversalSourceSpawnMethod_EContext ctx) {
         if (ctx.genericLiteralList().getChildCount() > 0) {
-            return this.traversalSource.E(GenericLiteralVisitor.getGenericLiteralList(ctx.genericLiteralList()));
+            return this.traversalSource.E(antlr.genericLiteralVisitor.getGenericLiteralList(ctx.genericLiteralList()));
         } else {
             return this.traversalSource.E();
         }
@@ -91,7 +94,7 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
     @Override
     public GraphTraversal visitTraversalSourceSpawnMethod_V(final GremlinParser.TraversalSourceSpawnMethod_VContext ctx) {
         if (ctx.genericLiteralList().getChildCount() > 0) {
-            return this.traversalSource.V(GenericLiteralVisitor.getGenericLiteralList(ctx.genericLiteralList()));
+            return this.traversalSource.V(antlr.genericLiteralVisitor.getGenericLiteralList(ctx.genericLiteralList()));
         } else {
             return this.traversalSource.V();
         }
@@ -101,7 +104,7 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
      */
     @Override
     public GraphTraversal visitTraversalSourceSpawnMethod_inject(final GremlinParser.TraversalSourceSpawnMethod_injectContext ctx) {
-        return this.traversalSource.inject(GenericLiteralVisitor.getGenericLiteralList(ctx.genericLiteralList()));
+        return this.traversalSource.inject(antlr.genericLiteralVisitor.getGenericLiteralList(ctx.genericLiteralList()));
     }
 
     /**
@@ -110,7 +113,7 @@ public class TraversalSourceSpawnMethodVisitor extends GremlinBaseVisitor<GraphT
     @Override
     public GraphTraversal visitTraversalSourceSpawnMethod_io(final GremlinParser.TraversalSourceSpawnMethod_ioContext ctx) {
         if (ctx.getChildCount() > 2) {
-            this.graphTraversal = this.traversalSource.io(GenericLiteralVisitor.getStringLiteral(ctx.stringLiteral()));
+            this.graphTraversal = this.traversalSource.io((String) antlr.genericLiteralVisitor.visitStringLiteral(ctx.stringLiteral()));
         }
         return graphTraversal;
     }

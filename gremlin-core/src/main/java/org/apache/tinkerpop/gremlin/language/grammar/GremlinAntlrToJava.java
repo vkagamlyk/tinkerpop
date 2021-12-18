@@ -64,6 +64,9 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
      */
     final GremlinBaseVisitor<Traversal[]> tListVisitor;
 
+    final GenericLiteralVisitor genericLiteralVisitor;
+    final TraversalStrategyVisitor traversalStrategyVisitor;
+
     /**
      * Creates a {@link GraphTraversal} implementation that is meant to be anonymous. This provides a way to change the
      * type of implementation that will be used as anonymous traversals. By default, it uses {@link __} which generates
@@ -140,6 +143,8 @@ public class GremlinAntlrToJava extends GremlinBaseVisitor<Object> {
                 null == traversalSourceName ? GraphTraversalSourceVisitor.TRAVERSAL_ROOT : traversalSourceName,this);
         this.tvisitor = new TraversalRootVisitor(this);
         this.tListVisitor = new NestedTraversalSourceListVisitor(this);
+        this.genericLiteralVisitor = new GenericLiteralVisitor(this);
+        this.traversalStrategyVisitor = new TraversalStrategyVisitor(this);
         this.createAnonymous = createAnonymous;
     }
 

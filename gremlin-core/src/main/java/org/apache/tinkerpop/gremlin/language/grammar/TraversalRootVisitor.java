@@ -58,7 +58,7 @@ public class TraversalRootVisitor<G extends Traversal> extends GremlinBaseVisito
         if (ctx.getChild(0) instanceof GremlinParser.RootTraversalContext) {
             return visitChildren(ctx);
         } else if (ctx.getChild(2) instanceof GremlinParser.ChainedParentOfGraphTraversalContext) {
-            return new TraversalRootVisitor<Traversal>(antlr.createAnonymous.get()).
+            return new TraversalRootVisitor<Traversal>(antlr, antlr.createAnonymous.get()).
                     visitChainedParentOfGraphTraversal(ctx.chainedTraversal().chainedParentOfGraphTraversal());
         } else {
             return new TraversalMethodVisitor(antlr, antlr.createAnonymous.get()).visitChainedTraversal(ctx.chainedTraversal());
@@ -76,7 +76,7 @@ public class TraversalRootVisitor<G extends Traversal> extends GremlinBaseVisito
                 (GremlinParser.TraversalSourceContext) ctx.getChild(childIndexOfTraversalSource));
         // call traversal source spawn method
         final int childIndexOfTraversalSourceSpawnMethod = 2;
-        final GraphTraversal traversal = new TraversalSourceSpawnMethodVisitor(source, this).visitTraversalSourceSpawnMethod(
+        final GraphTraversal traversal = new TraversalSourceSpawnMethodVisitor(source, this, antlr).visitTraversalSourceSpawnMethod(
                 (GremlinParser.TraversalSourceSpawnMethodContext) ctx.getChild(childIndexOfTraversalSourceSpawnMethod));
 
         if (ctx.getChildCount() == 5) {
@@ -84,7 +84,7 @@ public class TraversalRootVisitor<G extends Traversal> extends GremlinBaseVisito
             final int childIndexOfChainedTraversal = 4;
 
             if (ctx.getChild(childIndexOfChainedTraversal) instanceof GremlinParser.ChainedParentOfGraphTraversalContext) {
-                final TraversalRootVisitor traversalRootVisitor = new TraversalRootVisitor(traversal);
+                final TraversalRootVisitor traversalRootVisitor = new TraversalRootVisitor(antlr, traversal);
                 return traversalRootVisitor.visitChainedParentOfGraphTraversal(
                         (GremlinParser.ChainedParentOfGraphTraversalContext) ctx.getChild(childIndexOfChainedTraversal));
             } else {

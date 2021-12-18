@@ -45,72 +45,57 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     public static final int TOTAL_INTEGER_RANGE_RESULT_COUNT_LIMIT = 1_000_000;
     protected final GremlinAntlrToJava antlr;
-    protected GremlinBaseVisitor<TraversalStrategy> traversalStrategyVisitor;
-
-    private static GenericLiteralVisitor instance;
-
-    private GenericLiteralVisitor() {
-        this.antlr = null;
-    }
 
     public GenericLiteralVisitor(final GremlinAntlrToJava antlr) {
         this.antlr = antlr;
     }
 
-    public static GenericLiteralVisitor getInstance() {
-        if (instance == null) {
-            instance = new GenericLiteralVisitor();
-        }
-
-        return instance;
-    }
-
     /**
      * Parse a string literal context and return the string literal
      */
-    public static String getStringLiteral(final GremlinParser.StringLiteralContext stringLiteral) {
-        return (String) (getInstance().visitStringLiteral(stringLiteral));
+    public String getStringLiteral(final GremlinParser.StringLiteralContext stringLiteral) {
+        return (String) visitStringLiteral(stringLiteral);
     }
 
     /**
      * Parse a boolean literal context and return the boolean literal
      */
-    public static boolean getBooleanLiteral(final GremlinParser.BooleanLiteralContext booleanLiteral) {
-        return (boolean) (getInstance().visitBooleanLiteral(booleanLiteral));
+    public boolean getBooleanLiteral(final GremlinParser.BooleanLiteralContext booleanLiteral) {
+        return (boolean) visitBooleanLiteral(booleanLiteral);
     }
 
     /**
      * Parse a String literal list context and return a string array
      */
-    public static String[] getStringLiteralList(final GremlinParser.StringLiteralListContext stringLiteralList) {
+    public String[] getStringLiteralList(final GremlinParser.StringLiteralListContext stringLiteralList) {
         if (stringLiteralList == null || stringLiteralList.stringLiteralExpr() == null) {
             return new String[0];
         }
         return stringLiteralList.stringLiteralExpr().stringLiteral()
                 .stream()
                 .filter(Objects::nonNull)
-                .map(stringLiteral -> getInstance().visitStringLiteral(stringLiteral))
+                .map(this::visitStringLiteral)
                 .toArray(String[]::new);
     }
 
     /**
      * Parse a generic literal list, and return an object array
      */
-    public static Object[] getGenericLiteralList(final GremlinParser.GenericLiteralListContext objectLiteralList) {
+    public Object[] getGenericLiteralList(final GremlinParser.GenericLiteralListContext objectLiteralList) {
         if (objectLiteralList == null || objectLiteralList.genericLiteralExpr() == null) {
             return new Object[0];
         }
         return objectLiteralList.genericLiteralExpr().genericLiteral()
                 .stream()
                 .filter(Objects::nonNull)
-                .map(genericLiteral -> getInstance().visitGenericLiteral(genericLiteral))
+                .map(this::visitGenericLiteral)
                 .toArray(Object[]::new);
     }
 
     /**
      * Parse a TraversalStrategy literal list context and return a string array
      */
-    public static TraversalStrategy[] getTraversalStrategyList(final GremlinParser.TraversalStrategyListContext traversalStrategyListContext,
+    public TraversalStrategy[] getTraversalStrategyList(final GremlinParser.TraversalStrategyListContext traversalStrategyListContext,
                                                                final GremlinBaseVisitor<TraversalStrategy> traversalStrategyVisitor) {
         if (traversalStrategyListContext == null || traversalStrategyListContext.traversalStrategyExpr() == null) {
             return new TraversalStrategy[0];
@@ -405,7 +390,7 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitDateLiteral(final GremlinParser.DateLiteralContext ctx) {
-        return DatetimeHelper.parse(getStringLiteral(ctx.stringLiteral()));
+        return DatetimeHelper.parse((String) visitStringLiteral(ctx.stringLiteral()));
     }
 
     /**
@@ -461,10 +446,7 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
 
     @Override
     public Object visitTraversalStrategy(final GremlinParser.TraversalStrategyContext ctx) {
-        if (null == traversalStrategyVisitor)
-            traversalStrategyVisitor = new TraversalStrategyVisitor((GremlinBaseVisitor) antlr.tvisitor);
-
-        return traversalStrategyVisitor.visitTraversalStrategy(ctx);
+        return antlr.traversalStrategyVisitor.visitTraversalStrategy(ctx);
     }
 
     /**
