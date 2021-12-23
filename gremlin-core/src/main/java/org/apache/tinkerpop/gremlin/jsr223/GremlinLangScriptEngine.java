@@ -104,7 +104,7 @@ public class GremlinLangScriptEngine extends AbstractScriptEngine implements Gre
         if (!(o instanceof GraphTraversalSource))
             throw new IllegalArgumentException("g is of type " + o.getClass().getSimpleName() + " and is not an instance of TraversalSource");
 
-        final GremlinAntlrToJava antlr = new GremlinAntlrToJava((GraphTraversalSource) o);
+        final GremlinAntlrToJava antlr = new GremlinAntlrToJava((GraphTraversalSource) o, context.getBindings(ScriptContext.ENGINE_SCOPE));
 
         try {
             return GremlinQueryParser.parse(script, antlr);

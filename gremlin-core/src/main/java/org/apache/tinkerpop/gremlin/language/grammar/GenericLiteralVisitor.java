@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Visitor class to handle generic literal. All visitor methods return type is Object. It maybe used as a singleton
@@ -61,10 +62,6 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      * Parse a string literal context and return the string literal.
      */
     public String getStringLiteral(final GremlinParser.StringLiteralContext stringLiteral, final GremlinAntlrToJava antlr) {
-        if (antlr != null && stringLiteral.variable() != null) {
-            final String varName = stringLiteral.variable().getText();
-            return tryBindings(antlr, varName);
-        }
         return (String) visitStringLiteral(stringLiteral);
     }
 
@@ -265,6 +262,10 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitGenericLiteralMap(final GremlinParser.GenericLiteralMapContext ctx) {
+        if (isPossibleVariable(antlr, ctx.variable())) {
+            return tryBindings(antlr, ctx.variable());
+        }
+
         final HashMap<Object, Object> literalMap = new HashMap<>();
         int childIndex = 1;
         while (childIndex < ctx.getChildCount() && ctx.getChildCount() > 3) {
@@ -303,6 +304,10 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitIntegerLiteral(final GremlinParser.IntegerLiteralContext ctx) {
+        if (isPossibleVariable(antlr, ctx.variable())) {
+            return tryBindings(antlr, ctx.variable());
+        }
+
         String integerLiteral = ctx.getText().toLowerCase().replace("_", "");
         // handle suffixes for specific types
         final int lastCharIndex = integerLiteral.length() - 1;
@@ -369,6 +374,10 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitFloatLiteral(final GremlinParser.FloatLiteralContext ctx) {
+        if (isPossibleVariable(antlr, ctx.variable())) {
+            return tryBindings(antlr, ctx.variable());
+        }
+
         final String floatLiteral = ctx.getText().toLowerCase();
 
         // check suffix
@@ -393,6 +402,10 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitBooleanLiteral(final GremlinParser.BooleanLiteralContext ctx) {
+        if (isPossibleVariable(antlr, ctx.variable())) {
+            return tryBindings(antlr, ctx.variable());
+        }
+
         return Boolean.valueOf(ctx.getText());
     }
 
@@ -401,6 +414,10 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitDateLiteral(final GremlinParser.DateLiteralContext ctx) {
+        if (isPossibleVariable(antlr, ctx.variable())) {
+            return tryBindings(antlr, ctx.variable());
+        }
+
         return DatetimeHelper.parse((String) visitStringLiteral(ctx.stringLiteral()));
     }
 
@@ -409,6 +426,10 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
      */
     @Override
     public Object visitStringLiteral(final GremlinParser.StringLiteralContext ctx) {
+        if (isPossibleVariable(antlr, ctx.variable())) {
+            return tryBindings(antlr, ctx.variable());
+        }
+
         // Using Java string unescaping because it coincides with the Groovy rules:
         // https://docs.oracle.com/javase/tutorial/java/data/characters.html
         // http://groovy-lang.org/syntax.html#_escaping_special_characters
@@ -512,10 +533,26 @@ public class GenericLiteralVisitor extends GremlinBaseVisitor<Object> {
         return result;
     }
 
-    private static <T> T tryBindings(final GremlinAntlrToJava antlr, final String varName) {
-        if (!antlr.bindings.containsKey(varName)) {
+    /**
+     * Determines if the currently parsed context is a variable and if it is potentially resolvable.
+     */
+    private static boolean isPossibleVariable(final GremlinAntlrToJava antlr, final GremlinParser.VariableContext variable) {
+        return antlr != null && variable != null;
+    }
+
+    /**
+     * Tries to extract a value for the variable from the bindings supplied to the parser.
+     * @param antlr must not be null
+     * @param variableCtx must not be null
+     */
+    private static <T> T tryBindings(final GremlinAntlrToJava antlr,
+                                     final GremlinParser.VariableContext variableCtx) {
+        Objects.requireNonNull(antlr);
+        Objects.requireNonNull(variableCtx);
+
+        final String varName = variableCtx.getText();
+        if (!antlr.bindings.containsKey(varName))
             throw new UnboundIdentifierException(varName);
-        }
 
         return (T) antlr.bindings.get(varName);
     }
