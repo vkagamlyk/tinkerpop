@@ -31,10 +31,12 @@ import org.apache.tinkerpop.gremlin.process.traversal.traverser.B_O_TraverserGen
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.TraverserRequirement;
 import org.apache.tinkerpop.gremlin.process.traversal.util.EmptyTraversalSideEffects;
 import org.apache.tinkerpop.gremlin.process.traversal.util.EmptyTraversalStrategies;
+import org.apache.tinkerpop.gremlin.process.traversal.util.FastNoSuchElementException;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 
@@ -46,6 +48,7 @@ public abstract class AbstractLambdaTraversal<S, E> implements Traversal.Admin<S
     private static final Set<TraverserRequirement> REQUIREMENTS = Collections.singleton(TraverserRequirement.OBJECT);
 
     protected Traversal.Admin<S, E> bypassTraversal = null;
+    protected boolean closed = false;
 
     public void setBypassTraversal(final Traversal.Admin<S, E> bypassTraversal) {
         this.bypassTraversal = bypassTraversal;
@@ -65,11 +68,11 @@ public abstract class AbstractLambdaTraversal<S, E> implements Traversal.Admin<S
         return null == this.bypassTraversal ? new Bytecode() : this.bypassTraversal.getBytecode();
     }
 
-
     @Override
     public void reset() {
         if (null != this.bypassTraversal)
             this.bypassTraversal.reset();
+        this.closed = false;
     }
 
     @Override
@@ -142,6 +145,7 @@ public abstract class AbstractLambdaTraversal<S, E> implements Traversal.Admin<S
 
     @Override
     public E next() {
+        if (this.isClosed()) throw FastNoSuchElementException.instance();
         if (null != this.bypassTraversal)
             return this.bypassTraversal.next();
         throw new UnsupportedOperationException("The " + this.getClass().getSimpleName() + " can only be used as a predicate traversal");
@@ -156,6 +160,7 @@ public abstract class AbstractLambdaTraversal<S, E> implements Traversal.Admin<S
 
     @Override
     public boolean hasNext() {
+        if (this.isClosed()) return false;
         return null == this.bypassTraversal || this.bypassTraversal.hasNext();
     }
 
@@ -163,11 +168,25 @@ public abstract class AbstractLambdaTraversal<S, E> implements Traversal.Admin<S
     public void addStart(final Traverser.Admin<S> start) {
         if (null != this.bypassTraversal)
             this.bypassTraversal.addStart(start);
+
+        // match() expects that a traversal that has been iterated can continue to iterate if new starts are
+        // added therefore the closed state must be reset.
+        this.closed = false;
     }
 
     @Override
     public boolean isLocked() {
         return null == this.bypassTraversal || this.bypassTraversal.isLocked();
+    }
+
+    /**
+     * The closed state is not changed by default in this implementation (i.e. the {@link #notifyClose()} method is
+     * not implemented to set {@link #closed} to {@code true}). It is up to extending classes to implement the
+     * {@link #notifyClose()} method as needed.
+     */
+    @Override
+    public boolean isClosed() {
+        return null == this.bypassTraversal ? this.closed : this.bypassTraversal.isClosed();
     }
 
     /**

@@ -175,4 +175,12 @@ public final class EmptyTraversal<S, E> implements Traversal.Admin<S, E> {
     public void setGraph(final Graph graph) {
 
     }
+
+    /**
+     * As it is empty, the traversal is always closed.
+     */
+    @Override
+    public boolean isClosed() {
+        return true;
+    }
 }

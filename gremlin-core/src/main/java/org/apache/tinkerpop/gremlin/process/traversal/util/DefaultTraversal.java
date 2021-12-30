@@ -327,9 +327,7 @@ public class DefaultTraversal<S, E> implements Traversal.Admin<S, E> {
         return this.locked;
     }
 
-    /**
-     * Determines if the traversal has been fully iterated and resources released.
-     */
+    @Override
     public boolean isClosed() {
         return closed;
     }

@@ -308,6 +308,11 @@ public interface Traversal<S, E> extends Iterator<E>, Serializable, Cloneable, A
     }
 
     /**
+     * Determines if the traversal has been fully iterated and resources released.
+     */
+    public boolean isClosed();
+
+    /**
      * A collection of {@link Exception} types associated with Traversal execution.
      */
     public static class Exceptions {

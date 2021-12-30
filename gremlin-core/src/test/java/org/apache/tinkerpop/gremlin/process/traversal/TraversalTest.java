@@ -281,7 +281,8 @@ public class TraversalTest {
             steps = Collections.singletonList(mockEndStep);
         }
 
-        boolean isClosed() {
+        @Override
+        public boolean isClosed() {
             return mockEndStep instanceof MockCloseStep && ((MockCloseStep) mockEndStep).isClosed();
         }
 

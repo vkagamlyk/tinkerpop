@@ -28,10 +28,12 @@ import org.apache.tinkerpop.gremlin.process.remote.traversal.step.map.RemoteStep
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.Traverser;
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.util.EmptyTraverser;
+import org.apache.tinkerpop.gremlin.process.traversal.util.FastNoSuchElementException;
 import org.apache.tinkerpop.gremlin.structure.Element;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Property;
 import org.apache.tinkerpop.gremlin.structure.util.Attachable;
+import org.apache.tinkerpop.gremlin.structure.util.CloseableIterator;
 
 import java.util.Iterator;
 import java.util.Optional;
@@ -51,6 +53,7 @@ public class DriverRemoteTraversal<S, E> extends AbstractRemoteTraversal<S, E> {
 
     private final Iterator<Traverser.Admin<E>> traversers;
     private Traverser.Admin<E> lastTraverser = EmptyTraverser.instance();
+    private boolean closed = false;
 
     public DriverRemoteTraversal(final ResultSet rs, final Client client, final boolean attach, final Optional<Configuration> conf) {
         // attaching is really just for testing purposes. it doesn't make sense in any real-world scenario as it would
@@ -67,11 +70,16 @@ public class DriverRemoteTraversal<S, E> extends AbstractRemoteTraversal<S, E> {
 
     @Override
     public boolean hasNext() {
+        // if the traversal is closed then resources are released and there is nothing else to iterate
+        if (this.isClosed()) return false;
         return this.lastTraverser.bulk() > 0L || this.traversers.hasNext();
     }
 
     @Override
     public E next() {
+        // if the traversal is closed then resources are released and there is nothing else to iterate
+        if (this.isClosed()) throw FastNoSuchElementException.instance();
+
         if (0L == this.lastTraverser.bulk())
             this.lastTraverser = this.traversers.next();
         if (1L == this.lastTraverser.bulk()) {
@@ -95,6 +103,17 @@ public class DriverRemoteTraversal<S, E> extends AbstractRemoteTraversal<S, E> {
             this.lastTraverser = EmptyTraverser.instance();
             return temp;
         }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed;
+    }
+
+    @Override
+    public void notifyClose() {
+        CloseableIterator.closeIterator(traversers);
+        this.closed = true;
     }
 
     static class TraverserIterator<E> implements Iterator<Traverser.Admin<E>> {

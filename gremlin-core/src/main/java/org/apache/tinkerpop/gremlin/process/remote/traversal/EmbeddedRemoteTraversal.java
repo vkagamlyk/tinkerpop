@@ -48,4 +48,9 @@ public class EmbeddedRemoteTraversal<S,E> extends AbstractRemoteTraversal<S,E> {
     public E next() {
         return t.next();
     }
+
+    @Override
+    public boolean isClosed() {
+        return t.isClosed();
+    }
 }
