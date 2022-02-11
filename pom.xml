@@ -223,7 +223,7 @@ limitations under the License.
                             <rules>
                                 <DependencyConvergence/>
                                 <requireJavaVersion>
-                                    <version>[1.8,12)</version>
+                                    <version>[1.8,18)</version>
                                 </requireJavaVersion>
                                 <requireMavenVersion>
                                     <version>[3.5.3,)</version>
@@ -596,7 +596,7 @@ limitations under the License.
                 <plugin>
                     <groupId>org.codehaus.gmavenplus</groupId>
                     <artifactId>gmavenplus-plugin</artifactId>
-                    <version>1.11.0</version>
+                    <version>1.13.1</version>
                     <configuration>
                         <targetBytecode>1.8</targetBytecode>
                     </configuration>
@@ -852,6 +852,33 @@ limitations under the License.
             <id>jdk11</id>
             <activation>
                 <jdk>11</jdk>
+            </activation>
+            <properties>
+                <suresafeArgs>--illegal-access=permit</suresafeArgs>
+            </properties>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-compiler-plugin</artifactId>
+                            <version>3.8.1</version>
+                            <configuration>
+                                <release>8</release>
+                                <compilerArgs>
+                                    <arg>-parameters</arg>
+                                </compilerArgs>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+
+        <profile>
+            <id>jdk17</id>
+            <activation>
+                <jdk>17</jdk>
             </activation>
             <properties>
                 <suresafeArgs>--illegal-access=permit</suresafeArgs>

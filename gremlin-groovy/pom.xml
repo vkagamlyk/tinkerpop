@@ -43,63 +43,19 @@ limitations under the License.
             <version>2.5.0</version>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy</artifactId>
             <version>${groovy.version}</version>
-            <classifier>indy</classifier>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-groovysh</artifactId>
             <version>${groovy.version}</version>
-            <classifier>indy</classifier>
-            <exclusions>
-                <!-- exclude non-indy type -->
-                <exclusion>
-                    <groupId>org.codehaus.groovy</groupId>
-                    <artifactId>groovy</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-cli-picocli</artifactId>
-            <version>${groovy.version}</version>
-            <classifier>indy</classifier>
-        </dependency>
-        <!--
-        not sure why jline won't come in with groovy-groovysh but it messes up build of gremlin-console
-        -->
-        <dependency>
-            <groupId>jline</groupId>
-            <artifactId>jline</artifactId>
-            <version>2.14.6</version>
-        </dependency>
-        <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-json</artifactId>
-            <version>${groovy.version}</version>
-            <classifier>indy</classifier>
-            <exclusions>
-                <!-- exclude non-indy type -->
-                <exclusion>
-                    <groupId>org.codehaus.groovy</groupId>
-                    <artifactId>groovy</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.codehaus.groovy</groupId>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-jsr223</artifactId>
             <version>${groovy.version}</version>
-            <classifier>indy</classifier>
-            <exclusions>
-                <!-- exclude non-indy type -->
-                <exclusion>
-                    <groupId>org.codehaus.groovy</groupId>
-                    <artifactId>groovy</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -133,6 +89,13 @@ limitations under the License.
             <artifactId>gremlin-test</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
+            <exclusions>
+                <!-- conflicts with groovy 4.x -->
+                <exclusion>
+                    <groupId>org.ow2.asm</groupId>
+                    <artifactId>asm</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
     <build>
@@ -206,6 +169,40 @@ limitations under the License.
                             <!--
                             need to override source path as we don't seem to get the groovy-stubs automatically. this worked
                             under java 8 but errors under java 11 due to missing files on the path. i guess java 8 was more
+                            forgiving.
+                            -->
+                            <sourcepath>${pom.basedir}/src/main/java:${project.build.directory}/generated-sources/annotations:${project.build.directory}/generated-sources/groovy-stubs/main</sourcepath>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.8.1</version>
+                        <configuration>
+                            <release>8</release>
+                            <compilerArgs>
+                                <arg>-parameters</arg>
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>jdk17</id>
+            <activation>
+                <jdk>17</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <configuration>
+                            <!--
+                            need to override source path as we don't seem to get the groovy-stubs automatically. this worked
+                            under java 8 but errors under java 17 due to missing files on the path. i guess java 8 was more
                             forgiving.
                             -->
                             <sourcepath>${pom.basedir}/src/main/java:${project.build.directory}/generated-sources/annotations:${project.build.directory}/generated-sources/groovy-stubs/main</sourcepath>

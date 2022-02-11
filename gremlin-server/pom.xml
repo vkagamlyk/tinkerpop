@@ -71,6 +71,13 @@ limitations under the License.
             <artifactId>gremlin-test</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>
+            <exclusions>
+                <!-- conflicts with groovy 4.x -->
+                <exclusion>
+                    <groupId>org.ow2.asm</groupId>
+                    <artifactId>asm</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.carrotsearch</groupId>
