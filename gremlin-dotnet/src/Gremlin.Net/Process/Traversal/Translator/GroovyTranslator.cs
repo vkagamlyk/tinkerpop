@@ -60,15 +60,16 @@ namespace Gremlin.Net.Process.Traversal.Translator
         ///     This is typically a "g".
         /// </summary>
         public string TraversalSource { get; }
-        
+
         /// <summary>
         ///     Translate <see cref="Bytecode"/> into gremlin-groovy.
         /// </summary>
         /// <param name="bytecode">The bytecode representing traversal source and traversal manipulations.</param>
+        /// <param name="isChildTraversal">Whether this is an anonymous traversal (started via '__').</param>
         /// <returns>The translated gremlin-groovy traversal.</returns>
-        public string Translate(Bytecode bytecode)
+        public string Translate(Bytecode bytecode, bool isChildTraversal = false)
         {
-            var sb = new StringBuilder(TraversalSource);
+            var sb = new StringBuilder(isChildTraversal ? "__" : TraversalSource);
             
             foreach (var step in bytecode.SourceInstructions)
             {
@@ -104,8 +105,10 @@ namespace Gremlin.Net.Process.Traversal.Translator
         {
             if (argument == null)
                 return "null";
-            if (argument is string _)
-                return $"'{argument}'";
+            if (argument is string str)
+                return $"'{str}'";
+            if (argument is char c)
+                return $"'{c}'";
             if (argument is DateTimeOffset dto)
                 return TranslateDateTimeOffset(dto);
             if (argument is Guid guid)
@@ -120,7 +123,17 @@ namespace Gremlin.Net.Process.Traversal.Translator
             {
                 return TranslateCollection(e);
             }
+
+            if (argument is ITraversal t)
+            {
+                return TranslateTraversal(t);
+            }
             return Convert.ToString(argument, CultureInfo.InvariantCulture);
+        }
+
+        private string TranslateTraversal(ITraversal traversal)
+        {
+            return Translate(traversal.Bytecode, true);
         }
 
         private string TranslateDictionary(IDictionary dict)
