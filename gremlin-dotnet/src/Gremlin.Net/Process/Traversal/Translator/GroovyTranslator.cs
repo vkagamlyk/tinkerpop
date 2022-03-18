@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using Gremlin.Net.Process.Traversal.Strategy;
 
 namespace Gremlin.Net.Process.Traversal.Translator
 {
@@ -84,91 +85,30 @@ namespace Gremlin.Net.Process.Traversal.Translator
             return sb.ToString();
         }
 
-        private string TranslateStep(Instruction step)
-        {
-            return $".{step.OperatorName}({TranslateArguments(step.Arguments)})";
-        }
+        private string TranslateStep(Instruction step) => $".{step.OperatorName}({TranslateArguments(step.Arguments)})";
 
-        private string TranslateArguments(IReadOnlyCollection<object> arguments)
-        {
-            var argumentsAsStrings = new List<string>(arguments.Count);
-
-            foreach (var argument in arguments)
-            {
-                argumentsAsStrings.Add(TranslateArgument(argument));
-            }
-
-            return string.Join(", ", argumentsAsStrings);
-        }
+        private string TranslateArguments(IEnumerable<object> arguments) =>
+            string.Join(", ", arguments.Select(TranslateArgument));
 
         private string TranslateArgument(object argument)
         {
-            if (argument == null)
-                return "null";
-            if (argument is string str)
-                return $"'{str}'";
-            if (argument is char c)
-                return $"'{c}'";
-            if (argument is DateTimeOffset dto)
-                return TranslateDateTimeOffset(dto);
-            if (argument is Guid guid)
-                return TranslateGuid(guid);
-            if (argument is P p)
-                return TranslateP(p);
-            if (argument is IDictionary dict)
+            return argument switch
             {
-                return TranslateDictionary(dict);
-            }
-            if (argument is IEnumerable e)
-            {
-                return TranslateCollection(e);
-            }
-
-            if (argument is ITraversal t)
-            {
-                return TranslateTraversal(t);
-            }
-            return Convert.ToString(argument, CultureInfo.InvariantCulture);
+                null => "null",
+                string str => $"'{str}'",
+                char c => $"'{c}'",
+                DateTimeOffset dto => TranslateDateTimeOffset(dto),
+                DateTime dt => TranslateDateTimeOffset(dt),
+                Guid guid => $"UUID.fromString('{guid}')",
+                P p => TranslateP(p),
+                IDictionary dict => TranslateDictionary(dict),
+                IEnumerable e => TranslateCollection(e),
+                ITraversal t => TranslateTraversal(t),
+                AbstractTraversalStrategy strategy => TranslateStrategy(strategy),
+                _ => Convert.ToString(argument, CultureInfo.InvariantCulture)
+            };
         }
-
-        private string TranslateTraversal(ITraversal traversal)
-        {
-            return Translate(traversal.Bytecode, true);
-        }
-
-        private string TranslateDictionary(IDictionary dict)
-        {
-            var kvStrings = new List<string>(dict.Count);
-            foreach (DictionaryEntry kv in dict)
-            {
-                kvStrings.Add($"{TranslateArgument(kv.Key)}: {TranslateArgument(kv.Value)}");
-            }
-
-            return $"[{string.Join(", ", kvStrings)}]";
-        }
-
-        private bool IsDictionaryType(Type type)
-        {
-            return type
-                .GetInterfaces()
-                .Any(interfaceType => interfaceType.IsConstructedGenericType
-                                      && interfaceType.GetGenericTypeDefinition() == typeof(IEnumerable<>) 
-                                      && interfaceType.GenericTypeArguments[0] is { IsConstructedGenericType: true } genericArgument 
-                                      && genericArgument.GetGenericTypeDefinition() == typeof(KeyValuePair<,>));
-        }
-
-        private string TranslateCollection(IEnumerable enumerable) =>
-            $"[{TranslateArguments(enumerable.Cast<object>().ToArray())}]";
-
-        private string TranslateP(P p)
-        {
-            return p.Other == null
-                ? $"P.{p.OperatorName}({TranslateArgument(p.Value)})"
-                : $"P.{p.OperatorName}({TranslateArgument(p.Value)}, {TranslateArgument(p.Other)})";
-        }
-
-        private static string TranslateGuid(Guid guid) => $"UUID.fromString('{guid}')";
-
+        
         private static string TranslateDateTimeOffset(DateTimeOffset dto)
         {
             var year = dto.Year - 1900;
@@ -178,6 +118,40 @@ namespace Gremlin.Net.Process.Traversal.Translator
             var minute = dto.Minute;
             var second = dto.Second;
             return $"new Date({year}, {month}, {dayOfMonth}, {hour}, {minute}, {second})";
+        }
+        
+        private string TranslateP(P p)
+        {
+            return p.Other == null
+                ? $"P.{p.OperatorName}({TranslateArgument(p.Value)})"
+                : $"P.{p.OperatorName}({TranslateArgument(p.Value)}, {TranslateArgument(p.Other)})";
+        }
+        
+        private string TranslateDictionary(IDictionary dict)
+        {
+            var kvStrings = new List<string>(dict.Count);
+            foreach (DictionaryEntry kv in dict)
+            {
+                kvStrings.Add($"{TranslateArgument(kv.Key)}: {TranslateArgument(kv.Value)}");
+            }            
+
+            return $"[{string.Join(", ", kvStrings)}]";
+        }
+
+        private string TranslateCollection(IEnumerable enumerable) =>
+            $"[{TranslateArguments(enumerable.Cast<object>().ToArray())}]";
+        
+        private string TranslateTraversal(ITraversal traversal)
+        {
+            return Translate(traversal.Bytecode, true);
+        }
+
+        private string TranslateStrategy(AbstractTraversalStrategy strategy)
+        {
+            var config = string.Join(", ",
+                strategy.Configuration.Select(opt => $"{opt.Key}: {TranslateArgument(opt.Value)}"));
+
+            return $"new {strategy.StrategyName}({config})";
         }
     }
 }
