@@ -179,8 +179,7 @@ namespace Gremlin.Net.IntegrationTest.Driver
 
             Assert.NotNull(resultSet.StatusAttributes);
 
-            var values = (JsonElement) resultSet.StatusAttributes["@value"];
-            Assert.True(values[0].ToString().Equals("host"));
+            Assert.True(resultSet.StatusAttributes.ContainsKey("host"));
         }
 
         [Fact]
