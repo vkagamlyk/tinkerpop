@@ -23,9 +23,6 @@ __author__ = 'Kelvin R. Lawrence (gfxman)'
 
 from gremlin_python.structure.graph import Graph
 from gremlin_python.process.graph_traversal import __
-from gremlin_python.process.anonymous_traversal import traversal
-from gremlin_python.process.traversal import *
-from gremlin_python.process.strategies import *
 from gremlin_python.process.translator import *
 from datetime import datetime
 
@@ -88,13 +85,13 @@ class TestTraversalStrategies(object):
         tests.append([g.V('3').repeat(__.out().simplePath()).until(__.has('code', 'AGR')).path().by('code').limit(5),
                      "g.V('3').repeat(__.out().simplePath()).until(__.has('code','AGR')).path().by('code').limit(5)"])
         # 17
-        tests.append([g.V().hasLabel('airport').order().by(__.id()),
+        tests.append([g.V().hasLabel('airport').order().by(__.id_()),
                      "g.V().hasLabel('airport').order().by(__.id())"])
         # 18
         tests.append([g.V().hasLabel('airport').order().by(T.id),
                      "g.V().hasLabel('airport').order().by(T.id)"])
         # 19
-        tests.append([g.V().hasLabel('airport').order().by(__.id(),Order.desc),
+        tests.append([g.V().hasLabel('airport').order().by(__.id_(),Order.desc),
                      "g.V().hasLabel('airport').order().by(__.id(),Order.desc)"])
         # 20
         tests.append([g.V().hasLabel('airport').order().by('code',Order.desc),
@@ -127,28 +124,28 @@ class TestTraversalStrategies(object):
         tests.append([g.V().match(__.as_('a').has('code', 'LHR').as_('b')).select('b').by('code'),
                      "g.V().match(__.as('a').has('code','LHR').as('b')).select('b').by('code')"])
         # 30
-        tests.append([g.V().has('test-using-keyword-as-property','repeat'),
+        tests.append([g.V().has('test-using-keyword-as-property', 'repeat'),
                      "g.V().has('test-using-keyword-as-property','repeat')"])
         # 31
         tests.append([g.V('1').addE('test').to(__.V('4')),
                      "g.V('1').addE('test').to(__.V('4'))"])
         # 32
-        tests.append([g.V().values('runways').max(),
+        tests.append([g.V().values('runways').max_(),
                      "g.V().values('runways').max()"])
         # 33
-        tests.append([g.V().values('runways').min(),
+        tests.append([g.V().values('runways').min_(),
                      "g.V().values('runways').min()"])
         # 34
-        tests.append([g.V().values('runways').sum(),
+        tests.append([g.V().values('runways').sum_(),
                      "g.V().values('runways').sum()"])
         # 35
         tests.append([g.V().values('runways').mean(),
                      "g.V().values('runways').mean()"])
         # 36
-        tests.append([g.withSack(0).V('3', '5').sack(Operator.sum).by('runways').sack(),
+        tests.append([g.withSack(0).V('3', '5').sack(Operator.sum_).by('runways').sack(),
                      "g.withSack(0).V('3','5').sack(Operator.sum).by('runways').sack()"])
         # 37
-        tests.append([g.V('3').values('runways').store('x').V('4').values('runways').store('x').by(__.constant(1)).V('6').store('x').by(__.constant(1)).select('x').unfold().sum(),
+        tests.append([g.V('3').values('runways').store('x').V('4').values('runways').store('x').by(__.constant(1)).V('6').store('x').by(__.constant(1)).select('x').unfold().sum_(),
                      "g.V('3').values('runways').store('x').V('4').values('runways').store('x').by(__.constant(1)).V('6').store('x').by(__.constant(1)).select('x').unfold().sum()"])
         # 38
         tests.append([g.inject(3, 4, 5),
@@ -181,19 +178,19 @@ class TestTraversalStrategies(object):
         tests.append([g.V('1', '2').has('region', P.within('US-TX','US-GA')),
                      "g.V('1','2').has('region',within(['US-TX','US-GA']))"])
         # 48
-        tests.append([g.V().and_(__.has('runways', P.gt(5)), __.has('region','US-TX')),
+        tests.append([g.V().and_(__.has('runways', P.gt(5)), __.has('region', 'US-TX')),
                      "g.V().and(__.has('runways',gt(5)),__.has('region','US-TX'))"])
         # 49
-        tests.append([g.V().union(__.has('runways', gt(5)), __.has('region','US-TX')),
+        tests.append([g.V().union(__.has('runways', gt(5)), __.has('region', 'US-TX')),
                      "g.V().union(__.has('runways',gt(5)),__.has('region','US-TX'))"])
         # 50
-        tests.append([g.V('3').choose(__.values('runways').is_(3),__.constant('three'),__.constant('not three')),
+        tests.append([g.V('3').choose(__.values('runways').is_(3), __.constant('three'),__.constant('not three')),
                      "g.V('3').choose(__.values('runways').is(3),__.constant('three'),__.constant('not three'))"])
         # 51
-        tests.append([g.V('3').choose(__.values('runways')).option(1,__.constant('three')).option(2,__.constant('not three')),
+        tests.append([g.V('3').choose(__.values('runways')).option(1, __.constant('three')).option(2,__.constant('not three')),
                      "g.V('3').choose(__.values('runways')).option(1,__.constant('three')).option(2,__.constant('not three'))"])
         # 52
-        tests.append([g.V('3').choose(__.values('runways')).option(1.5,__.constant('one and a half')).option(2,__.constant('not three')),
+        tests.append([g.V('3').choose(__.values('runways')).option(1.5, __.constant('one and a half')).option(2,__.constant('not three')),
                      "g.V('3').choose(__.values('runways')).option(1.5,__.constant('one and a half')).option(2,__.constant('not three'))"])
         # 53
         tests.append([g.V('3').repeat(__.out().simplePath()).until(__.loops().is_(1)).count(),
@@ -219,7 +216,7 @@ class TestTraversalStrategies(object):
                      "g.V().limit(5).order().by(T.label)"])
 
         # 60
-        tests.append([g.V().range(1, 5),
+        tests.append([g.V().range_(1, 5),
                      "g.V().range(1,5)"])
 
         # 61
@@ -260,12 +257,12 @@ class TestTraversalStrategies(object):
                      "g.V().hasLabel('airport').where(__.out().count().is(gt(250))).values('code')"])
 
         # 72
-        tests.append([g.V().hasLabel('airport').filter(__.out().count().is_(gt(250))).values('code'),
+        tests.append([g.V().hasLabel('airport').filter_(__.out().count().is_(gt(250))).values('code'),
                      "g.V().hasLabel('airport').filter(__.out().count().is(gt(250))).values('code')"])
         # 73
         tests.append([g.withSack(0).
                         V('3').
-                        repeat(__.outE('route').sack(Operator.sum).by('dist').inV()).
+                        repeat(__.outE('route').sack(Operator.sum_).by('dist').inV()).
                         until(__.has('code', 'AGR').or_().loops().is_(4)).
                         has('code', 'AGR').
                         local(__.union(__.path().by('code').by('dist'),__.sack()).fold()).
@@ -330,7 +327,7 @@ class TestTraversalStrategies(object):
         tests.append([g.withStrategies(strategy).V().count(),
                       "g.withStrategies(new SubgraphStrategy(vertexProperties:__.hasNot('runways'))).V().count()"])
         # 92
-        strategy = SubgraphStrategy(vertices=__.has('region', 'US-TX'),vertex_properties=__.hasNot('runways'))
+        strategy = SubgraphStrategy(vertices=__.has('region', 'US-TX'), vertex_properties=__.hasNot('runways'))
         tests.append([g.withStrategies(strategy).V().count(),
                       "g.withStrategies(new SubgraphStrategy(vertices:__.has('region','US-TX'),vertexProperties:__.hasNot('runways'))).V().count()"])
         # 93
@@ -353,6 +350,12 @@ class TestTraversalStrategies(object):
         # 98
         tests.append([g.withComputer().V().shortestPath().with_(ShortestPath.target, __.has('name','peter')),
                      "g.withStrategies(new VertexProgramStrategy()).V().shortestPath().with('~tinkerpop.shortestPath.target',__.has('name','peter'))"])
+        # 99
+        tests.append([g.V().coalesce(__.E(),__.addE('person')),
+                     "g.V().coalesce(__.E(),__.addE('person'))"])
+        # 100
+        tests.append([g.inject(1).E(),
+                     "g.inject(1).E()"])
 
         tlr = Translator().of('g')
 

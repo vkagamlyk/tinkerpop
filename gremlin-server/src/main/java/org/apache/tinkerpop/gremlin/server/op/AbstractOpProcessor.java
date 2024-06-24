@@ -20,12 +20,13 @@ package org.apache.tinkerpop.gremlin.server.op;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
-import org.apache.tinkerpop.gremlin.driver.ser.MessageTextSerializer;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.ser.MessageTextSerializer;
+import org.apache.tinkerpop.gremlin.process.traversal.Failure;
 import org.apache.tinkerpop.gremlin.server.Context;
 import org.apache.tinkerpop.gremlin.server.GraphManager;
 import org.apache.tinkerpop.gremlin.server.OpProcessor;
@@ -67,12 +68,12 @@ public abstract class AbstractOpProcessor implements OpProcessor {
     }
 
     /**
-     * Check if any exception in the chain is TemporaryException then we should respond with the right error code so
-     * that the client knows to retry.
+     * Check if any exception in the chain is {@link TemporaryException} or {@link Failure} then respond with the
+     * right error code so that the client knows to retry.
      */
-    protected static Optional<Throwable> determineIfTemporaryException(final Throwable ex) {
+    protected static Optional<Throwable> determineIfSpecialException(final Throwable ex) {
         return Stream.of(ExceptionUtils.getThrowables(ex)).
-                filter(i -> i instanceof TemporaryException).findFirst();
+                filter(i -> i instanceof TemporaryException || i instanceof Failure).findFirst();
     }
 
     /**

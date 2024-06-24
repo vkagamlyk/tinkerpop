@@ -329,6 +329,7 @@ The following table describes the various configuration options for the Gremlin 
 |serializer.config |A `Map` of configuration settings for the serializer. |_none_
 |username |The username to submit on requests that require authentication. |_none_
 |workerPoolSize |Size of the pool for handling background work. |available processors * 2
+|enableUserAgentOnConnect |Enables sending a user agent to the server during connection requests. More details can be found in provider docs link:https://tinkerpop.apache.org/docs/x.y.z/dev/provider/#_graph_driver_provider_requirements[here].|true
 |=========================================================
 
 Please see the link:https://tinkerpop.apache.org/javadocs/x.y.z/core/org/apache/tinkerpop/gremlin/driver/Cluster.Builder.html[Cluster.Builder javadoc] to get more information on these settings.
@@ -344,7 +345,7 @@ documentation as Java covers both embedded and remote use cases.
 
 Remote systems like Gremlin Server and Remote Gremlin Providers respond to requests made in a particular serialization
 format and respond by serializing results to some format to be interpreted by the client. For JVM-based languages,
-there are three options for serialization: Gryo, GraphSON and GraphBinary. It is important that the client and server
+there are two options for serialization: GraphSON and GraphBinary. It is important that the client and server
 have the same serializers configured in the same way or else one or the other will experience serialization exceptions
 and fail to always communicate. Discrepancy in serializer registration between client and server can happen fairly
 easily as different graph systems may automatically include serializers on the server-side, thus leaving the client
@@ -364,11 +365,9 @@ GraphTraversalSource g = traversal().withRemote(DriverRemoteConnection.using(cli
 
 The `IoRegistry` tells the serializer what classes from the graph provider to auto-register during serialization.
 Gremlin Server roughly uses this same approach when it configures its serializers, so using this same model will
-ensure compatibility when making requests. Obviously, it is possible to switch to GraphSON or Gryo by using
-the appropriate `MessageSerializer` (e.g. `GraphSONMessageSerializerV3d0` or `GryoMessageSerializerV3d0` respectively)
+ensure compatibility when making requests. Obviously, it is possible to switch to GraphSON or GraphBinary by using
+the appropriate `MessageSerializer` (e.g. `GraphSONMessageSerializerV3d0` or `GraphBinaryMessageSerializerV1d0` respectively)
 in the same way and building that into the `Cluster` object.
-
-NOTE: Gryo is no longer the preferred binary serialization format for Gremlin Server - please prefer GraphBinary.
 
 [[gremlin-java-lambda]]
 === The Lambda Solution
@@ -530,8 +529,18 @@ to "g" and "g1" and "g2" are automatically rebound into "g" on the server-side.
 [[gremlin-java-dsl]]
 === Domain Specific Languages
 
-Creating a <<dsl,Domain Specific Language>> (DSL) in Java requires the `@GremlinDsl` Java annotation in `gremlin-core`.
-This annotation should be applied to a "DSL interface" that extends `GraphTraversal.Admin`:
+Creating a <<dsl,Domain Specific Language>> (DSL) in Java requires the `@GremlinDsl` Java annotation in the
+`gremlin-annotations` module. This annotation should be applied to a "DSL interface" that extends
+`GraphTraversal.Admin`:
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.apache.tinkerpop</groupId>
+    <artifactId>gremlin-annotations</artifactId>
+    <version>x.y.z</version>
+</dependency>
+----
 
 [source,java]
 ----
@@ -657,6 +666,65 @@ social.persons("marko").knows("josh");
 NOTE: Using Maven, as shown in the `gremlin-archetype-dsl` module, makes developing DSLs with the annotation processor
 straightforward in that it sets up appropriate paths to the generated code automatically.
 
+[[gremlin-java-troubleshooting]]
+=== Troubleshooting
+
+*Max frame length of 65536 has been exceeded*
+
+This error occurs when the driver attempts to process a request/response that exceeds the configured maximum size.
+The most direct way to fix this problem is to increase the `maxContentLength` setting in the driver. Ideally, the
+`maxContentLength` set for the driver should match the setting defined on the server.
+
+*TimeoutException*
+
+A `TimeoutException` is thrown by the driver when the time limit assigned by the `maxWaitForConnection` is exceeded
+when trying to borrow a connection from the connection pool for a particular host. There are generally two scenarios
+where this occurs:
+
+1. The server has actually reached its maximum capacity or the driver has just learned that the server is unreachable.
+2. The client is throttling requests when the pool is exhausted.
+
+The latter of the two can be addressed from the driver side in the following ways:
+
+* Increase the `maxWaitForConnection` allowing the client to wait a bit longer for a connection to become available.
+* Increase the number of requests allowed per connection by increasing the `maxSimultaneousUsagePerConnection` and
+`maxInProcessPerConnection` settings.
+* Increase the number of connections available in the connection pool by increasing the `maxConnectionPoolSize`.
+
+The exception and logs (assuming they are enabled) should contain information about the state of the connection pool
+along with its connections which can help shed more light on which of these scenarios caused the problem. Some examples
+of these messages and their meaning are shown below:
+
+_The server is unavailable_
+
+[source,text]
+----
+Timed-out (500 MILLISECONDS) waiting for connection on Host{address=localhost/127.0.0.1:45940, hostUri=ws://localhost:45940/gremlin}. Potential Cause: Connection refused: no further information
+> ConnectionPool (Host{address=localhost/127.0.0.1:45940, hostUri=ws://localhost:45940/gremlin})- no connections in pool
+----
+
+_Client is likely issuing more requests than the pool size can handle_
+
+[source,text]
+----
+Timed-out (150 MILLISECONDS) waiting for connection on Host{address=localhost/127.0.0.1:45940, hostUri=ws://localhost:45940/gremlin}. Potential Cause: Number of active requests exceeds pool size. Consider increasing the value for maxConnectionPoolSize.
+ConnectionPool (Host{address=localhost/127.0.0.1:45940, hostUri=ws://localhost:45940/gremlin})
+Connection Pool Status (size=1 max=1 min=1 toCreate=0 bin=0)
+> Connection{channel=5a859d62 isDead=false borrowed=1 pending=1 markedReplaced=false closing=false created=2022-12-19T21:08:21.569613100Z thread=gremlin-driver-conn-scheduler-1}
+-- bin --
+----
+
+_Network traffic is slow and the websocket handshake does not complete in time_
+
+[source,text]
+----
+Timed-out (250 MILLISECONDS) waiting for connection on Host{address=localhost/127.0.0.1:45940, hostUri=ws://localhost:45940/gremlin}. Potential Cause: WebSocket handshake not completed in stipulated time=[100]ms
+ConnectionPool (Host{address=localhost/127.0.0.1:45940, hostUri=ws://localhost:45940/gremlin})
+Connection Pool Status (size=1 max=5 min=1 toCreate=0 bin=0)
+> Connection{channel=205fc8d2 isDead=false borrowed=1 pending=1 markedReplaced=false closing=false created=2022-12-19T21:10:04.692921600Z thread=gremlin-driver-conn-scheduler-1}
+-- bin --
+----
+
 anchor:java-application-examples[]
 anchor:gremlin-archetypes[]
 [[gremlin-java-examples]]
@@ -762,6 +830,13 @@ const __ = gremlin.process.statics;
 const DriverRemoteConnection = gremlin.driver.DriverRemoteConnection;
 const column = gremlin.process.column
 const direction = gremlin.process.direction
+Direction: {
+  BOTH: traversalModule.direction.both,
+  IN: traversalModule.direction.in,
+  OUT: traversalModule.direction.out,
+  from_: traversalModule.direction.in,
+  to: traversalModule.direction.out,
+}
 const p = gremlin.process.P
 const textp = gremlin.process.TextP
 const pick = gremlin.process.pick
@@ -780,6 +855,34 @@ const { P: { gt } } = gremlin.process;
 const { order: { desc } } = gremlin.process;
 g.V().hasLabel('person').has('age',gt(30)).order().by('age',desc).toList()
 ----
+
+[[gremlin-javascript-configuration]]
+=== Configuration
+The following table describes the various configuration options for the Gremlin-Javascript Driver. They
+can be passed in the constructor of a new `Client` or `DriverRemoteConnection` :
+
+[width="100%",cols="3,3,10,^2",options="header"]
+|=========================================================
+|Key |Type |Description |Default
+|url |String |The resource uri. |None
+|options |Object |The connection options. |{}
+|options.ca |Array |Trusted certificates. |undefined
+|options.cert |String/Array/Buffer |The certificate key. |undefined
+|options.mimeType |String |The mime type to use. |'application/vnd.gremlin-v3.0+json'
+|options.pfx |String/Buffer |The private key, certificate, and CA certs. |undefined
+|options.reader |GraphSONReader/GraphBinaryReader |The reader to use. |select reader according to mimeType
+|options.writer |GraphSONWriter |The writer to use. |select writer according to mimeType
+|options.rejectUnauthorized |Boolean |Determines whether to verify or not the server certificate. |undefined
+|options.traversalSource |String |The traversal source. |'g'
+|options.authenticator |Authenticator |The authentication handler to use. |undefined
+|options.processor |String |The name of the opProcessor to use, leave it undefined or set 'session' when session mode. |undefined
+|options.session |String |The sessionId of Client in session mode. undefined means session-less Client. |undefined
+|options.enableUserAgentOnConnect |Boolean |Determines if a user agent will be sent during connection handshake. |true
+|options.headers |Object |An associative array containing the additional header key/values for the initial request. |undefined
+|options.pingEnabled |Boolean |Setup ping interval. |true
+|options.pingInterval |Number |Ping request interval in ms if ping enabled. |60000
+|options.pongTimeout |Number |Timeout of pong response in ms after sending a ping. |30000
+|=========================================================
 
 [[gremlin-javascript-transactions]]
 === Transactions
@@ -883,9 +986,7 @@ IMPORTANT: The preferred method for setting a per-request timeout for scripts is
 with bytecode may try `g.with(EVALUATION_TIMEOUT, 500)` within a script. Scripts with multiple traversals and multiple
 timeouts will be interpreted as a sum of all timeouts identified in the script for that request.
 
-
 ==== Processing results as they are returned from the Gremlin server
-
 
 The Gremlin JavaScript driver maintains a WebSocket connection to the Gremlin server and receives messages according to the `batchSize` parameter on the per request settings or the `resultIterationBatchSize` value configured for the Gremlin server. When submitting scripts the default behavior is to wait for the entire result set to be returned from a query before allowing any processing on the result set.
 
@@ -934,7 +1035,6 @@ try {
 }
 
 ----
-
 
 [[gremlin-javascript-dsl]]
 === Domain Specific Languages
@@ -1004,6 +1104,7 @@ In situations where Javascript reserved words and global functions overlap with 
 bits of conflicting Gremlin get an underscore appended as a suffix:
 
 *Steps* - <<from-step,from_()>>, <<in-step,in_()>>, <<with-step,with_()>>
+*Tokens* - `Direction.from_`
 
 Gremlin allows for `Map` instances to include `null` keys, but `null` keys in Javascript have some interesting behavior
 as in:
@@ -1040,7 +1141,6 @@ g.V().hasLabel('person').groupCount().by('age')
 
 Either of the above two options accomplishes the desired goal as both prevent `groupCount()` from having to process
 the possibility of `null`.
-
 [[gremlin-javascript-limitations]]
 === Limitations
 
@@ -1126,6 +1226,9 @@ on the `ConnectionPoolSettings` instance that can be passed to the `GremlinClien
 |MaxInProcessPerConnection |The maximum number of in-flight requests that can occur on a connection. |32
 |ReconnectionAttempts |The number of attempts to get an open connection from the pool to submit a request. |4
 |ReconnectionBaseDelay |The base delay used for the exponential backoff for the reconnection attempts. |1 s
+|EnableUserAgentOnConnect |Enables sending a user agent to the server during connection requests.
+More details can be found in provider docs
+link:https://tinkerpop.apache.org/docs/x.y.z/dev/provider/#_graph_driver_provider_requirements[here].|true
 |=========================================================
 
 A `NoConnectionAvailableException` is thrown if all connections have reached the `MaxInProcessPerConnection` limit
@@ -1145,16 +1248,27 @@ attacks like CRIME/BREACH. Compression should therefore be turned off if the app
 server as well as data that could potentially be controlled by an untrusted user. Compression can be disabled via the
 `disableCompression` parameter.
 
-[[gremlin-dotnet-serialization]]
-=== Serialization
+[[gremlin-dotnet-logging]]
+=== Logging
 
-The Gremlin.Net driver uses by default GraphSON 3.0 but it is also possible to use another serialization format by passing a message serializer when creating the `GremlinClient`.
-
-GraphBinary can be configured like this:
+It is possible to enable logging for the Gremlin.Net driver by providing an `ILoggerFactory` (from the
+`Microsoft.Extensions.Logging.Abstractions` package) to the `GremlinClient` constructor:
 
 [source,csharp]
 ----
-include::../../../gremlin-dotnet/test/Gremlin.Net.IntegrationTest/Docs/Reference/GremlinVariantsTests.cs[tags=serializationBinary]
+include::../../../gremlin-dotnet/test/Gremlin.Net.IntegrationTest/Docs/Reference/GremlinVariantsTests.cs[tags=logging]
+----
+
+[[gremlin-dotnet-serialization]]
+=== Serialization
+
+The Gremlin.Net driver uses by default GraphBinary but it is also possible to use another serialization format by passing a message serializer when creating the `GremlinClient`.
+
+GraphSON 3.0 can be configured like this:
+
+[source,csharp]
+----
+include::../../../gremlin-dotnet/test/Gremlin.Net.IntegrationTest/Docs/Reference/GremlinVariantsTests.cs[tags=serializationGraphSon3]
 ----
 
 and GraphSON 2.0 like this:
@@ -1205,7 +1319,7 @@ g.V().Out().Map<int>(Lambda.Groovy("it.get().value('name').length()")).Sum<int>(
 g.V().Out().Map<int>(Lambda.Python("lambda x: len(x.get().value('name'))")).Sum<int>().ToList(); <2>
 ----
 
-<1> `Lambda.Groovy()` can be used to create a Groovy lambda. 
+<1> `Lambda.Groovy()` can be used to create a Groovy lambda.
 <2> `Lambda.Python()` can be used to create a Python lambda.
 
 The `ILambda` interface returned by these two methods inherits interfaces like `IFunction` and `IPredicate` that mirror
@@ -1451,7 +1565,7 @@ results, err := g.With("evaluationTimeout", 500).V().Out("knows").ToList()
 ----
 
 The following options are allowed on a per-request basis in this fashion: `batchSize`, `requestId`, `userAgent` and
-`evaluationTimeout` (formerly `scriptEvaluationTimeout` which is also supported but now deprecated).
+`evaluationTimeout`.
 
 anchor:go-imports[]
 [[gremlin-go-imports]]
@@ -1501,6 +1615,9 @@ can be passed to the `NewClient` or `NewDriverRemoteConnection` functions as con
 |ReadBufferSize |Specify I/O buffer sizes in bytes. If a buffer size is zero, then a useful default size is used |0
 |WriteBufferSize |Specify I/O buffer sizes in bytes. If a buffer size is zero, then a useful default size is used |0
 |Session |Session ID. |""
+|EnableUserAgentOnConnect |Enables sending a user agent to the server during connection requests.
+More details can be found in provider docs
+link:https://tinkerpop.apache.org/docs/x.y.z/dev/provider/#_graph_driver_provider_requirements[here].|true
 |=========================================================
 
 [[gremlin-go-strategies]]
@@ -1627,7 +1744,7 @@ resultSet, err := client.Submit("g.V().repeat(both()).times(100)", map[string]in
 ----
 
 The following options are allowed on a per-request basis in this fashion: `batchSize`, `requestId`, `userAgent` and
-`evaluationTimeout` (formerly `scriptEvaluationTimeout` which is also supported but now deprecated).
+`evaluationTimeout`.
 
 IMPORTANT: The preferred method for setting a per-request timeout for scripts is demonstrated above, but those familiar
 with bytecode may try `g.with("evaluationTimeout", 500)` within a script. Scripts with multiple traversals and multiple
@@ -1644,6 +1761,130 @@ results, err := resultSet.All()
 In the above example, defines a timeout of 500 milliseconds, but the script has three traversals with
 two internal settings for the timeout using `with()`. The request timeout used by the server will therefore be 1000
 milliseconds (overriding the 500 which itself was an override for whatever configuration was on the server).
+
+[[gremlin-go-dsl]]
+=== Domain Specific Languages
+
+Writing a Gremlin <<dsl,Domain Specific Language>> (DSL) in Go requires embedding of several structs and interfaces:
+
+* `GraphTraversal` - which exposes the various steps used in traversal writing
+* `GraphTraversalSource` - which spawns `GraphTraversal` instances
+* `AnonymousTraversal` - which spawns anonymous traversals from steps
+
+The Social DSL based on the link:https://tinkerpop.apache.org/docs/x.y.z/images/tinkerpop-modern.png["modern" toy graph]
+might look like this:
+
+[source,go]
+----
+// Optional syntactic sugar.
+var __ = gremlingo.T__
+var P = gremlingo.P
+var gt = gremlingo.P.Gt
+// Optional alias for import convenience.
+type GraphTraversal = gremlingo.GraphTraversal
+type GraphTraversalSource = gremlingo.GraphTraversalSource
+type AnonymousTraversal = gremlingo.AnonymousTraversal
+
+// Embed Graph traversal inside custom traversal struct to add custom traversal functions.
+// In go, capitalizing the first letter exports (makes public) the struct/method to outside of package, for this example
+// we have defined everything package private. In actual usage, please see fit to your application.
+type socialTraversal struct {
+	*GraphTraversal
+}
+
+func (s *socialTraversal) knows(personName string) *socialTraversal {
+	return &socialTraversal{s.Out("knows").HasLabel("person").Has("name", personName)}
+}
+
+func (s *socialTraversal) youngestFriendsAge() *socialTraversal {
+	return &socialTraversal{s.Out("knows").HasLabel("person").Values("age").Min()}
+}
+
+func (s *socialTraversal) createdAtLeast(number int) *socialTraversal {
+	return &socialTraversal{s.OutE("created").Count().Is(gt(number))}
+}
+
+// Add custom social traversal source to spaw custom traversals.
+type socialTraversalSource struct {
+	*GraphTraversalSource
+}
+
+// Define the source step function by adding steps to the bytecode.
+func (sts *socialTraversalSource) persons(personNames ...interface{}) *socialTraversal {
+	t := sts.GetGraphTraversal()
+	t.Bytecode.AddStep("V")
+	t.Bytecode.AddStep("hasLabel", "person")
+	if personNames != nil {
+		t.Bytecode.AddStep("has", "name", P.Within(personNames...))
+	}
+	return &socialTraversal{t}
+}
+
+
+// Create the social anonymous traversal interface to embed and extend the anonymous traversal functions.
+type iSocialAnonymousTraversal interface {
+	AnonymousTraversal
+	knows(personName string) *GraphTraversal
+	youngestFriendsAge() *GraphTraversal
+	createdAtLeast(number int) *GraphTraversal
+}
+
+// Add the struct to implement the iSocialAnonymousTraversal interface.
+type socialAnonymousTraversal struct {
+	AnonymousTraversal
+	socialTraversal func() *socialTraversal
+}
+
+// Add the variable s__ to call anonymous traversal step functions in place of __.
+var s__ iSocialAnonymousTraversal = &socialAnonymousTraversal{
+	__,
+	func() *socialTraversal {
+		return &socialTraversal{gremlingo.NewGraphTraversal(nil, gremlingo.NewBytecode(nil), nil)}
+	},
+}
+
+// Extended anonymous traversal functions need to return GraphTraversal for serialization purposes
+func (sat *socialAnonymousTraversal) knows(personName string) *GraphTraversal {
+	return sat.socialTraversal().knows(personName).GraphTraversal
+}
+
+func (sat *socialAnonymousTraversal) youngestFriendsAge() *GraphTraversal {
+	return sat.socialTraversal().youngestFriendsAge().GraphTraversal
+}
+
+func (sat *socialAnonymousTraversal) createdAtLeast(number int) *GraphTraversal {
+	return sat.socialTraversal().createdAtLeast(number).GraphTraversal
+}
+----
+
+Using the DSL requires a social traversal source to be created from the default traversal source:
+
+[source,go]
+----
+// Creating the driver remote connection as regular.
+driverRemoteConnection, _ := gremlingo.NewDriverRemoteConnection("ws://localhost:8182/gremlin",
+	func(settings *gremlingo.DriverRemoteConnectionSettings) {
+		settings.TraversalSource = "gmodern"
+	})
+defer driverRemoteConnection.Close()
+
+// Create social traversal source from graph traversal source.
+social := &socialTraversalSource{gremlingo.Traversal_().WithRemote(driverRemoteConnection)}
+
+// We can now use the social traversal source as well as traversal steps
+resBool, _ := social.persons("marko", "stephen").knows("josh").HasNext()
+fmt.Println(resBool)
+
+// Using the createdAtLeast step.
+resCreated, _ := social.persons().createdAtLeast(1).Next()
+fmt.Println(resCreated.GetString())
+
+// Using the social anonymous traversal.
+resAnon, _ := social.persons().Filter(s__.createdAtLeast(1)).Count().Next()
+fmt.Println(resAnon.GetString())
+
+// Note that error handling has been omitted with _ from the above examples.
+----
 
 [[gremlin-go-differences]]
 === Differences
@@ -1705,11 +1946,6 @@ To make the code more readable and close to the Gremlin query language), you can
 type implementation. To input a set into Gremlin-Go, a custom struct which implements the `gremlingo.Set` interface
 will be serialized as a set. `gremlingo.NewSimpleSet` is a basic implementation of a set that is provided by Gremlin-Go
 that can be used to fulfill the `gremlingo.Set` interface if desired.
-* The `path` data type serialization is currently incomplete as labels are represented as list of lists instead of list
-of sets. Fully functional Path serialization will be implemented when set is implemented in the next milestone. Path
-can be successfully deserialized.
-* Traversal step functions currently take `string` arguments with double quotes only. Operations using Gremlin keywords,
-such as `By(label)`, will be supported in the next milestone.
 
 [[gremlin-go-examples]]
 === Application Examples
@@ -1752,7 +1988,7 @@ the "g" provided to the `DriverRemoteConnection` corresponds to the name of a `G
 
 [source,python]
 ----
-g = traversal().withRemote(DriverRemoteConnection('ws://localhost:8182/gremlin','g'))
+g = traversal().with_remote(DriverRemoteConnection('ws://localhost:8182/gremlin','g'))
 ----
 
 If you need to send additional headers in the websockets connection, you can pass an optional `headers` parameter
@@ -1760,7 +1996,7 @@ to the `DriverRemoteConnection` constructor.
 
 [source,python]
 ----
-g = traversal().withRemote(DriverRemoteConnection(
+g = traversal().with_remote(DriverRemoteConnection(
     'ws://localhost:8182/gremlin', 'g', headers={'Header':'Value'}))
 ----
 
@@ -1769,11 +2005,11 @@ Gremlin-Python supports plain text and Kerberos SASL authentication, you can set
 [source,python]
 ----
 # Plain text authentication
-g = traversal().withRemote(DriverRemoteConnection(
+g = traversal().with_remote(DriverRemoteConnection(
     'ws://localhost:8182/gremlin', 'g', username='stephen', password='password'))
 
 # Kerberos authentication
-g = traversal().withRemote(DriverRemoteConnection(
+g = traversal().with_remote(DriverRemoteConnection(
     'ws://localhost:8182/gremlin', 'g', kerberized_service='gremlin@hostname.your.org'))
 ----
 
@@ -1800,7 +2036,7 @@ Some connection options can also be set on individual requests made through the 
 
 [source,python]
 ----
-vertices = g.with_('evaluationTimeout', 500).V().out('knows').toList()
+vertices = g.with_('evaluationTimeout', 500).V().out('knows').to_list()
 ----
 
 The following options are allowed on a per-request basis in this fashion: `batchSize`, `requestId`, `userAgent` and
@@ -1833,13 +2069,15 @@ from gremlin_python.process.traversal import Scope
 from gremlin_python.process.traversal import Barrier
 from gremlin_python.process.traversal import Bindings
 from gremlin_python.process.traversal import WithOptions
+from_ = Direction.OUT
+to = Direction.IN
 ----
 
 These can be used analogously to how they are used in Gremlin-Java.
 
 [source,python]
 ----
->>> g.V().hasLabel('person').has('age',P.gt(30)).order().by('age',Order.desc).toList()
+>>> g.V().has_label('person').has('age',P.gt(30)).order().by('age',Order.desc).to_list()
 [v[6], v[4]]
 ----
 
@@ -1854,7 +2092,7 @@ With statics loaded its possible to represent the above traversal as below.
 
 [source,python]
 ----
->>> g.V().hasLabel('person').has('age',gt(30)).order().by('age',desc).toList()
+>>> g.V().has_label('person').has('age',gt(30)).order().by('age',desc).to_list()
 [v[6], v[4]]
 ----
 
@@ -1863,7 +2101,7 @@ That is, without the `+__+`-prefix.
 
 [source,python]
 ----
->>> g.V().repeat(out()).times(2).name.fold().toList()
+>>> g.V().repeat(out()).times(2).name.fold().to_list()
 [['ripple', 'lop']]
 ----
 
@@ -1892,7 +2130,7 @@ can be passed to the `Client` or `DriverRemoteConnection` instance as keyword ar
 |Key |Description |Default
 |headers |Additional headers that will be added to each request message. |`None`
 |max_workers |Maximum number of worker threads. |Number of CPUs * 5
-|message_serializer |The message serializer implementation.|`gremlin_python.driver.serializer.GraphSONMessageSerializer`
+|message_serializer |The message serializer implementation.|`gremlin_python.driver.serializer.GraphBinarySerializersV1`
 |password |The password to submit on requests that require authentication. |""
 |pool_size |The number of connections used by the pool. |4
 |protocol_factory |A callable that returns an instance of `AbstractBaseProtocol`. |`gremlin_python.driver.protocol.GremlinServerWSProtocol`
@@ -1900,6 +2138,9 @@ can be passed to the `Client` or `DriverRemoteConnection` instance as keyword ar
 |username |The username to submit on requests that require authentication. |""
 |kerberized_service |the first part of the principal name configured for the gremlin service|"""
 |session | A unique string-based identifier (typically a UUID) to enable a <<sessions,session-based connection>>. This is not a valid configuration for `DriverRemoteConnection`. |None
+|enable_user_agent_on_connect |Enables sending a user agent to the server during connection requests.
+More details can be found in provider docs
+link:https://tinkerpop.apache.org/docs/x.y.z/dev/provider/#_graph_driver_provider_requirements[here].|True
 |=========================================================
 
 Note that the `transport_factory` can allow for additional configuration of the `AiohttpTransport`, which allows
@@ -1911,15 +2152,23 @@ and the ability to call the api from an event loop:
 ----
 import ssl
 ...
-g = traversal().withRemote(
+g = traversal().with_remote(
   DriverRemoteConnection('ws://localhost:8182/gremlin','g',
-                         transport_factory=lambda: AiohttpTransport(read_timeout=10,
-                                                                    write_timeout=10,
-                                                                    heartbeat=1.0,
+                         transport_factory=lambda: AiohttpTransport(read_timeout=60,
+                                                                    write_timeout=20,
+                                                                    heartbeat=10,
                                                                     call_from_event_loop=True,
                                                                     max_content_length=100*1024*1024,
                                                                     ssl_options=ssl.create_default_context(Purpose.CLIENT_AUTH))))
 ----
+
+Note that the `heartbeat` enables keep-alive functionality within aiohttp and it is not enabled by default. It is
+important that the heartbeat interval is not too short, as the wait for the server response to the heartbeat request
+is half the amount of this value. Therefore, if the heartbeat is ten seconds then the wait for the response is just
+five seconds. If the response is not received in that time period then the connection will be closed and any ongoing
+requests on that connection will fail to retrieve results. Therefore, if the heartbeat is set to one second, it only
+provides a half-second to get the response which raises the possibility considerably that the connection will be
+inadvertently closed.
 
 Compression configuration options are described in the
 link:https://docs.python.org/3.6/library/zlib.html#zlib.compressobj[zlib documentation]. By default, compression
@@ -1933,20 +2182,20 @@ In order to add and remove <<traversalstrategy,traversal strategies>> from a tra
 
 [source,python]
 ----
->>> g = g.withStrategies(SubgraphStrategy(vertices=hasLabel('person'),edges=has('weight',gt(0.5))))
->>> g.V().name.toList()
+>>> g = g.with_strategies(SubgraphStrategy(vertices=has_label('person'),edges=has('weight',gt(0.5))))
+>>> g.V().name.to_list()
 ['marko', 'vadas', 'josh', 'peter']
->>> g.V().outE().elementMap().toList()
+>>> g.V().out_e().element_map().to_list()
 [{<T.id: 1>: 8, <T.label: 4>: 'knows', <Direction.IN: 2>: {<T.id: 1>: 4, <T.label: 4>: 'person'}, <Direction.OUT: 3>: {<T.id: 1>: 1, <T.label: 4>: 'person'}, 'weight': 1.0}]
->>> g = g.withoutStrategies(SubgraphStrategy)
->>> g.V().name.toList()
+>>> g = g.without_strategies(SubgraphStrategy)
+>>> g.V().name.to_list()
 ['marko', 'vadas', 'lop', 'josh', 'ripple', 'peter']
->>> g.V().outE().elementMap().toList()
+>>> g.V().out_e().element_map().to_list()
 [{<T.id: 1>: 9, <T.label: 4>: 'created', <Direction.IN: 2>: {<T.id: 1>: 3, <T.label: 4>: 'software'}, <Direction.OUT: 3>: {<T.id: 1>: 1, <T.label: 4>: 'person'}, 'weight': 0.4}, {<T.id: 1>: 7, <T.label: 4>: 'knows', <Direction.IN: 2>: {<T.id: 1>: 2, <T.label: 4>: 'person'}, <Direction.OUT: 3>: {<T.id: 1>: 1, <T.label: 4>: 'person'}, 'weight': 0.5}, {<T.id: 1>: 8, <T.label: 4>: 'knows', <Direction.IN: 2>: {<T.id: 1>: 4, <T.label: 4>: 'person'}, <Direction.OUT: 3>: {<T.id: 1>: 1, <T.label: 4>: 'person'}, 'weight': 1.0}, {<T.id: 1>: 10, <T.label: 4>: 'created', <Direction.IN: 2>: {<T.id: 1>: 5, <T.label: 4>: 'software'}, <Direction.OUT: 3>: {<T.id: 1>: 4, <T.label: 4>: 'person'}, 'weight': 1.0}, {<T.id: 1>: 11, <T.label: 4>: 'created', <Direction.IN: 2>: {<T.id: 1>: 3, <T.label: 4>: 'software'}, <Direction.OUT: 3>: {<T.id: 1>: 4, <T.label: 4>: 'person'}, 'weight': 0.4}, {<T.id: 1>: 12, <T.label: 4>: 'created', <Direction.IN: 2>: {<T.id: 1>: 3, <T.label: 4>: 'software'}, <Direction.OUT: 3>: {<T.id: 1>: 6, <T.label: 4>: 'person'}, 'weight': 0.2}]
->>> g = g.withComputer(workers=2,vertices=has('name','marko'))
->>> g.V().name.toList()
+>>> g = g.with_computer(workers=2,vertices=has('name','marko'))
+>>> g.V().name.to_list()
 ['marko']
->>> g.V().outE().valueMap().with_(WithOptions.tokens).toList()
+>>> g.V().out_e().value_map().with_(WithOptions.tokens).to_list()
 [{<T.id: 1>: 9, <T.label: 4>: 'created', 'weight': 0.4}, {<T.id: 1>: 7, <T.label: 4>: 'knows', 'weight': 0.5}, {<T.id: 1>: 8, <T.label: 4>: 'knows', 'weight': 1.0}]
 ----
 
@@ -1964,7 +2213,7 @@ builds on that content by demonstrating the transactional syntax for Python.
 
 [source,python]
 ----
-g = traversal().withRemote(DriverRemoteConnection('ws://localhost:8182/gremlin'))
+g = traversal().with_remote(DriverRemoteConnection('ws://localhost:8182/gremlin'))
 
 # Create a Transaction.
 tx = g.tx()
@@ -1974,7 +2223,7 @@ gtx = tx.begin()
 
 try:
     # Execute a traversal within the transaction.
-    gtx.addV("person").property("name", "Lyndon").iterate(),
+    gtx.add_v("person").property("name", "Lyndon").iterate(),
 
     # Commit the transaction. The transaction can no longer be used and cannot be re-used.
     # A new transaction can be spawned through g.tx().
@@ -1998,7 +2247,7 @@ use.
 
 [source,python]
 ----
->>> g.V().out().map(lambda: "it.get().value('name').length()").sum().toList()
+>>> g.V().out().map(lambda: "it.get().value('name').length()").sum().to_list()
 [24]
 ----
 
@@ -2013,9 +2262,9 @@ instead of translating, compiling, and then executing each submitted bytecode, i
 
 [source,python]
 ----
->>> g.V(Bindings.of('x',1)).out('created').map(lambda: "it.get().value('name').length()").sum().toList()
+>>> g.V(Bindings.of('x',1)).out('created').map(lambda: "it.get().value('name').length()").sum_().to_list()
 [3]
->>> g.V(Bindings.of('x',4)).out('created').map(lambda: "it.get().value('name').length()").sum().toList()
+>>> g.V(Bindings.of('x',4)).out('created').map(lambda: "it.get().value('name').length()").sum_().to_list()
 [9]
 ----
 
@@ -2047,7 +2296,7 @@ future_results = result_set.all()  <2>
 results = future_results.result() <3>
 assert results == [1, 2, 3, 4] <4>
 
-future_result_set = client.submitAsync('[1,2,3,4]') <5>
+future_result_set = client.submit_async('[1,2,3,4]') <5>
 result_set = future_result_set.result() <6>
 result = result_set.one() <7>
 assert results == [1, 2, 3, 4] <8>
@@ -2079,7 +2328,7 @@ request.
 
 [source,python]
 ----
-result_set = client.submit('g.V().repeat(both()).times(100)', result_options={'evaluationTimeout': 5000})
+result_set = client.submit('g.V().repeat(both()).times(100)', request_options={'evaluationTimeout': 5000})
 ----
 
 The following options are allowed on a per-request basis in this fashion: `batchSize`, `requestId`, `userAgent` and
@@ -2110,7 +2359,7 @@ Writing a Gremlin <<dsl,Domain Specific Language>> (DSL) in Python simply requir
 * `__` - which spawns anonymous traversals from steps
 * `GraphTraversalSource` - which spawns `GraphTraversal` instances
 
-The Social DSL based on the link:https://tinkerpop.apache.org/docs/current/images/tinkerpop-modern.png["modern" toy graph]
+The Social DSL based on the link:https://tinkerpop.apache.org/docs/x.y.z/images/tinkerpop-modern.png["modern" toy graph]
 might look like this:
 
 [source,python]
@@ -2118,13 +2367,13 @@ might look like this:
 class SocialTraversal(GraphTraversal):
 
     def knows(self, person_name):
-        return self.out('knows').hasLabel('person').has('name', person_name)
+        return self.out('knows').has_label('person').has('name', person_name)
 
-    def youngestFriendsAge(self):
-        return self.out('knows').hasLabel('person').values('age').min()
+    def youngest_friends_age(self):
+        return self.out('knows').has_label('person').values('age').min()
 
-    def createdAtLeast(self, number):
-        return self.outE('created').count().is_(P.gte(number))
+    def created_at_least(self, number):
+        return self.out_e('created').count().is_(P.gte(number))
 
 class __(AnonymousTraversal):
 
@@ -2135,12 +2384,12 @@ class __(AnonymousTraversal):
         return cls.graph_traversal(None, None, Bytecode()).knows(*args)
 
     @classmethod
-    def youngestFriendsAge(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).youngestFriendsAge(*args)
+    def youngest_friends_age(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).youngest_friends_age(*args)
 
     @classmethod
-    def createdAtLeast(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).createdAtLeast(*args)
+    def created_at_least(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).created_at_least(*args)
 
 
 class SocialTraversalSource(GraphTraversalSource):
@@ -2168,10 +2417,10 @@ be used:
 
 [source,python]
 ----
-social = traversal(SocialTraversalSource).withRemote(DriverRemoteConnection('ws://localhost:8182/gremlin','g'))
+social = traversal(SocialTraversalSource).with_remote(DriverRemoteConnection('ws://localhost:8182/gremlin','g'))
 social.persons('marko').knows('josh')
-social.persons('marko').youngestFriendsAge()
-social.persons().filter(__.createdAtLeast(2)).count()
+social.persons('marko').youngest_friends_age()
+social.persons().filter(__.created_at_least(2)).count()
 ----
 
 [[gremlin-python-sugar]]
@@ -2182,11 +2431,11 @@ that makes traversals a bit more concise.
 
 [source,python]
 ----
->>> g.V().both()[1:3].toList()
+>>> g.V().both()[1:3].to_list()
 [v[2], v[4]]
->>> g.V().both()[1].toList()
+>>> g.V().both()[1].to_list()
 [v[2]]
->>> g.V().both().name.toList()
+>>> g.V().both().name.to_list()
 ['lop', 'lop', 'lop', 'vadas', 'josh', 'josh', 'josh', 'marko', 'marko', 'marko', 'peter', 'ripple']
 ----
 
@@ -2196,11 +2445,12 @@ that makes traversals a bit more concise.
 In situations where Python reserved words and global functions overlap with standard Gremlin steps and tokens, those
 bits of conflicting Gremlin get an underscore appended as a suffix:
 
-*Steps* - <<and-step,and_()>>, <<as-step,as_()>>, <<filter-step,filter_()>>, <<from-step,from_()>>, <<id-step,id_()>>,
-<<is-step,is_()>>, <<in-step,in_()>>, <<max-step,max_()>>, <<min-step,min_()>>, <<not-step,not_()>>, <<or-step,or_()>>,
-<<range-step,range_()>>, <<sum-step,sum_()>>, <<with-step,with_()>>
+*Steps* - <<and-step,and_()>>, <<as-step,as_()>>, <<filter-step,filter_()>>, <<from-step,from_()>>,
+<<has-step,has_key_>>, <<id-step,id_()>>, <<is-step,is_()>>, <<in-step,in_()>>, <<max-step,max_()>>,
+<<min-step,min_()>>, <<not-step,not_()>>, <<or-step,or_()>>, <<range-step,range_()>>, <<sum-step,sum_()>>,
+<<with-step,with_()>>
 
-*Tokens* - <<a-note-on-scopes,Scope.global_>>
+*Tokens* - <<a-note-on-scopes,Scope.global_>>, `Direction.from_`, `Operator.sum_`
 
 [[gremlin-python-limitations]]
 === Limitations
@@ -2217,6 +2467,31 @@ key.
 * The `subgraph()`-step is not supported by any variant that is not running on the Java Virtual Machine as there is
 no `Graph` instance to deserialize a result into on the client-side. A workaround is to replace the step with
 `aggregate(local)` and then convert those results to something the client can use locally.
+* Use of the aiohttp library in the default transport requires the use of asyncio's event loop to run the async functions.
+This can be an issue in situations where the application calling Gremlin-Python is already using an event loop.
+Certain types of event loops can be patched using nest-asyncio which allows Gremlin-Python to proceed without an error like
+"Cannot run the event loop while another loop is running". This is the preferred approach to avoiding the issue and can be
+enabled by passing `call_from_event_loop=True` to the `AiohttpTransport` class.
+
++
+However, in situations where the loop cannot be patched (e.g. uvloop), then the current suggested workaround is to run
+Gremlin-Python in a separate thread. This is not ideal for asynchronous web servers as the number of concurrent connections
+will be limited by the number of threads the system can handle. The following snippet shows how Gremlin-Python can be called
+from asynchronous code using a thread.
+
++
+[source,python]
+----
+def print_vertices():
+    g = traversal().withRemote(DriverRemoteConnection("ws://localhost:8182/gremlin"))
+    # Do your traversal.
+
+async def run_in_thread():
+    running_loop = asyncio.get_running_loop()
+
+    with ThreadPoolExecutor() as pool:
+        await running_loop.run_in_executor(pool, print_vertices)
+----
 
 [[gremlin-python-examples]]
 === Application Examples

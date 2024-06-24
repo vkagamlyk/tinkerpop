@@ -22,8 +22,10 @@ import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 import org.apache.tinkerpop.gremlin.process.traversal.util.AndP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.OrP;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -47,20 +49,34 @@ public class PTest {
 
     @RunWith(Parameterized.class)
     public static class ParameterizedTest {
+        @Rule
+        public ExpectedException exceptionRule = ExpectedException.none();
 
         @Parameterized.Parameters(name = "{0}.test({1}) = {2}")
         public static Iterable<Object[]> data() {
             return new ArrayList<>(Arrays.asList(new Object[][]{
                     {P.eq(0), 0, true},
+                    {P.eq(0), -0, true},
+                    {P.eq(0), +0, true},
+                    {P.eq(-0), +0, true},
                     {P.eq(0), 1, false},
                     {P.eq(0), null, false},
                     {P.eq(null), null, true},
                     {P.eq(null), 0, false},
+                    {P.eq(Double.POSITIVE_INFINITY), Double.NEGATIVE_INFINITY, false},
+                    {P.eq(Float.POSITIVE_INFINITY), Float.NEGATIVE_INFINITY, false},
+                    {P.eq(Float.POSITIVE_INFINITY), Double.NEGATIVE_INFINITY, false},
                     {P.neq(0), 0, false},
+                    {P.neq(0), -0, false},
+                    {P.neq(0), +0, false},
+                    {P.neq(-0), +0, false},
                     {P.neq(0), 1, true},
                     {P.neq(0), null, true},
                     {P.neq(null), null, false},
                     {P.neq(null), 0, true},
+                    {P.neq(Double.POSITIVE_INFINITY), Double.NEGATIVE_INFINITY, true},
+                    {P.neq(Float.POSITIVE_INFINITY), Float.NEGATIVE_INFINITY, true},
+                    {P.neq(Float.POSITIVE_INFINITY), Double.NEGATIVE_INFINITY, true},
                     {P.gt(0), -1, false},
                     {P.gt(0), 0, false},
                     {P.gt(0), 1, true},
@@ -85,6 +101,7 @@ public class PTest {
                     {P.outside(1, 10), 1, false},
                     {P.outside(1, 10), 9, false},
                     {P.outside(1, 10), 10, false},
+                    {P.outside(1, Double.NaN), 0, true},
                     {P.within(), 0, false},
                     {P.within((Object) null), 0, false},
                     {P.within((Object) null), null, true},
@@ -146,6 +163,39 @@ public class PTest {
                     {TextP.containing("o").and(P.gte("j")).and(TextP.endingWith("ko")), "josh", false},
                     {TextP.containing("o").and(P.gte("j").and(TextP.endingWith("ko"))), "marko", true},
                     {TextP.containing("o").and(P.gte("j").and(TextP.endingWith("ko"))), "josh", false},
+
+                    // type errors
+                    {P.outside(Double.NaN, Double.NaN), 0, GremlinTypeErrorException.class},
+                    {P.inside(-1, Double.NaN), 0, GremlinTypeErrorException.class},
+                    {P.inside(Double.NaN, 1), 0, GremlinTypeErrorException.class},
+                    {TextP.containing(null), "abc", GremlinTypeErrorException.class},
+                    {TextP.containing("abc"), null, GremlinTypeErrorException.class},
+                    {TextP.containing(null), null, GremlinTypeErrorException.class},
+                    {TextP.startingWith(null), "abc", GremlinTypeErrorException.class},
+                    {TextP.startingWith("abc"), null, GremlinTypeErrorException.class},
+                    {TextP.startingWith(null), null, GremlinTypeErrorException.class},
+                    {TextP.endingWith(null), "abc", GremlinTypeErrorException.class},
+                    {TextP.endingWith("abc"), null, GremlinTypeErrorException.class},
+                    {TextP.endingWith(null), null, GremlinTypeErrorException.class},
+                    {TextP.regex("D"), "Dallas Fort Worth", true},
+                    {TextP.regex("d"), "Dallas Fort Worth", false},
+                    {TextP.regex("^D"), "Dallas Fort Worth", true},
+                    {TextP.regex("^d"), "Dallas Fort Worth", false},
+                    {TextP.regex("^Da"), "Dallas Forth Worth", true},
+                    {TextP.regex("^da"), "Dallas Forth Worth", false},
+                    {TextP.regex("^x"), "Dallas Fort Worth", false},
+                    {TextP.regex("s"), "Dallas Fort Worth", true},
+                    {TextP.regex("x"), "Dallas Fort Worth", false},
+                    {TextP.regex("Dal[l|x]as"), "Dallas Fort Worth", true},
+                    {TextP.regex("Dal[f|x]as"), "Dallas Fort Worth", false},
+                    {TextP.regex("[a-zA-Z]+ Fort"), "Dallas Fort Worth", true},
+                    {TextP.regex("[1-9]{3}"), "123-ABC-456", true},
+                    {TextP.regex("[1-9]{3}-[A-Z]{3}-[1-9]{3}"), "123-ABC-456", true},
+                    {TextP.regex("[1-9]{3}-[a-z]{3}-[1-9]{3}"), "123-ABC-456", false},
+                    {TextP.regex("(?i)[1-9]{3}-[a-z]{3}-[1-9]{3}"), "123-ABC-456", true},
+                    {TextP.regex("(?i)abc"), "123-ABC-456", true},
+                    {TextP.regex("(?i)[a-b]{3}-[1-9]{3}-[a-z]{3}"), "123-ABC-456", false},
+                    {TextP.regex("Tinker.*\\u00A9"), "Apache TinkerPop©", true},
             }));
         }
 
@@ -156,10 +206,13 @@ public class PTest {
         public Object value;
 
         @Parameterized.Parameter(value = 2)
-        public boolean expected;
+        public Object expected;
 
         @Test
         public void shouldTest() {
+            if (expected instanceof Class)
+                exceptionRule.expect((Class) expected);
+
             assertEquals(expected, predicate.test(value));
             assertNotEquals(expected, predicate.clone().negate().test(value));
             assertNotEquals(expected, P.not(predicate.clone()).test(value));

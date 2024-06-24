@@ -24,10 +24,10 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.ReferenceCountUtil;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.groovy.engine.GremlinExecutor;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.Operator;
@@ -133,6 +133,15 @@ public class UnifiedHandler extends SimpleChannelInboundHandler<RequestMessage> 
                 validateRequest(msg, graphManager);
             } catch (SessionException we) {
                 ctx.writeAndFlush(we.getResponseMessage());
+                return;
+            }
+
+            // this is for backward compatibility for drivers still sending a close message. the close message was
+            // removed in 3.5.0 but then added back for 3.5.2.
+            if (msg.getOp().equals(Tokens.OPS_CLOSE)) {
+                ctx.writeAndFlush(ResponseMessage.build(msg)
+                        .code(ResponseStatusCode.NO_CONTENT)
+                        .create());
                 return;
             }
 

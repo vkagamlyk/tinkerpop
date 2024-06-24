@@ -23,14 +23,15 @@ import org.apache.commons.configuration2.ConfigurationConverter;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.Pick;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Script;
+import org.apache.tinkerpop.gremlin.process.traversal.Text;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
-import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.TraversalStrategyProxy;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.OrP;
@@ -38,6 +39,7 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
 
 import java.lang.reflect.Method;
@@ -50,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -167,14 +170,21 @@ public final class PythonTranslator implements Translator.ScriptTranslator {
 
         @Override
         protected String getSyntax(final Number o) {
-            // todo: nan/inf
-            // all int/short/BigInteger/long are just python int/bignum
-            if (o instanceof Double || o instanceof Float || o instanceof BigDecimal)
+            if (o instanceof Double || o instanceof Float || o instanceof BigDecimal) {
+                if (NumberHelper.isNaN(o))
+                    return "float('nan')";
+                if (NumberHelper.isPositiveInfinity(o))
+                    return "float('inf')";
+                if (NumberHelper.isNegativeInfinity(o))
+                    return "float('-inf')";
+
                 return "float(" + o + ")";
-            else if (o instanceof Byte)
+            }
+            if (o instanceof Byte)
                 return "SingleByte(" + o + ")";
-            else
-                return o.toString();
+
+            // all int/short/BigInteger/long are just python int/bignum
+            return o.toString();
         }
 
         @Override
@@ -188,7 +198,7 @@ public final class PythonTranslator implements Translator.ScriptTranslator {
         }
 
         @Override
-        protected String getSyntax(final TraversalOptionParent.Pick o) {
+        protected String getSyntax(final Pick o) {
             return "Pick." + resolveSymbol(o.toString());
         }
 
@@ -319,7 +329,17 @@ public final class PythonTranslator implements Translator.ScriptTranslator {
         @Override
         protected Script produceScript(final P<?> p) {
             if (p instanceof TextP) {
-                script.append("TextP.").append(resolveSymbol(p.getBiPredicate().toString())).append("(");
+                // special case the RegexPredicate since it isn't an enum. toString() for the final default will
+                // typically cover implementations (generally worked for Text prior to 3.6.0)
+                final BiPredicate<?, ?> tp = p.getBiPredicate();
+                if (tp instanceof Text.RegexPredicate) {
+                    final String regexToken = ((Text.RegexPredicate) p.getBiPredicate()).isNegate() ? "not_regex" : "regex";
+                    script.append("TextP.").append(regexToken).append("(");
+                } else if (tp instanceof Text) {
+                    script.append("TextP.").append(((Text) p.getBiPredicate()).name()).append("(");
+                } else {
+                    script.append("TextP.").append(p.getBiPredicate().toString()).append("(");
+                }
                 convertToScript(p.getValue());
             } else if (p instanceof ConnectiveP) {
                 // ConnectiveP gets some special handling because it's reduced to and(P, P, P) and we want it
@@ -401,23 +421,27 @@ public final class PythonTranslator implements Translator.ScriptTranslator {
 
         static {
             TO_PYTHON_MAP.put("global", "global_");
-            TO_PYTHON_MAP.put("as", "as_");
-            TO_PYTHON_MAP.put("in", "in_");
-            TO_PYTHON_MAP.put("and", "and_");
-            TO_PYTHON_MAP.put("or", "or_");
-            TO_PYTHON_MAP.put("is", "is_");
-            TO_PYTHON_MAP.put("not", "not_");
-            TO_PYTHON_MAP.put("from", "from_");
-            TO_PYTHON_MAP.put("list", "list_");
-            TO_PYTHON_MAP.put("set", "set_");
             TO_PYTHON_MAP.put("all", "all_");
-            TO_PYTHON_MAP.put("with", "with_");
-            TO_PYTHON_MAP.put("range", "range_");
+            TO_PYTHON_MAP.put("and", "and_");
+            TO_PYTHON_MAP.put("as", "as_");
             TO_PYTHON_MAP.put("filter", "filter_");
+            TO_PYTHON_MAP.put("from", "from_");
             TO_PYTHON_MAP.put("id", "id_");
+            TO_PYTHON_MAP.put("in", "in_");
+            TO_PYTHON_MAP.put("is", "is_");
+            TO_PYTHON_MAP.put("list", "list_");
             TO_PYTHON_MAP.put("max", "max_");
+            TO_PYTHON_MAP.put("mergeE", "merge_e");
+            TO_PYTHON_MAP.put("mergeV", "merge_v");
+            TO_PYTHON_MAP.put("onCreate", "on_create");
+            TO_PYTHON_MAP.put("onMatch", "on_match");
             TO_PYTHON_MAP.put("min", "min_");
+            TO_PYTHON_MAP.put("or", "or_");
+            TO_PYTHON_MAP.put("not", "not_");
+            TO_PYTHON_MAP.put("range", "range_");
+            TO_PYTHON_MAP.put("set", "set_");
             TO_PYTHON_MAP.put("sum", "sum_");
+            TO_PYTHON_MAP.put("with", "with_");
             //
             TO_PYTHON_MAP.forEach((k, v) -> FROM_PYTHON_MAP.put(v, k));
         }
@@ -427,6 +451,8 @@ public final class PythonTranslator implements Translator.ScriptTranslator {
         }
 
         public static String toPython(final String symbol) {
+            // at some point we will want a camel to snake case converter here. for now the only step that needs
+            // this conversion is mergeE/V related as the rest still continue use in their deprecated forms.
             return TO_PYTHON_MAP.getOrDefault(symbol, symbol);
         }
 

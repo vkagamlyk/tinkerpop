@@ -27,6 +27,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.Scoping;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent;
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.TraverserRequirement;
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.util.EmptyTraverser;
+import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalProduct;
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalRing;
 import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalUtil;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
@@ -69,8 +70,17 @@ public final class SelectStep<S, E> extends MapStep<S, Map<String, E>> implement
         try {
             for (final String selectKey : this.selectKeys) {
                 final E end = this.getScopeValue(this.pop, selectKey, traverser);
-                bindings.put(selectKey, TraversalUtil.applyNullable(end, this.traversalRing.next()));
+                final TraversalProduct product = TraversalUtil.produce(end, this.traversalRing.next());
+
+                if (!product.isProductive()) break;
+
+                bindings.put(selectKey, (E) product.get());
             }
+
+            // bindings should be the same size as keys or else there was an uproductive by() in which case we filter
+            // with an EmptyTraverser
+            if (bindings.size() != selectKeys.size()) return EmptyTraverser.instance();
+
         } catch (KeyNotFoundException nfe) {
             return EmptyTraverser.instance();
         } finally {
@@ -137,6 +147,17 @@ public final class SelectStep<S, E> extends MapStep<S, Map<String, E>> implement
     @Override
     public Set<String> getScopeKeys() {
         return this.selectKeysSet;
+    }
+
+    /**
+     * Get the keys for this SelectStep. Unlike {@link SelectStep#getScopeKeys()}, this returns a list possibly with
+     * a duplicate key. This guarantees to return the keys in the same order as passed in.
+     * TODO: getScopeKeys should return order-aware data structure instead of HashSet so that graph providers can
+     *       get the keys in the order passed in a query, and can associate them with by-traversals in a correct sequence.
+     *
+     */
+    public List<String> getSelectKeys() {
+        return this.selectKeys;
     }
 
     public Map<String, Traversal.Admin<Object, E>> getByTraversals() {

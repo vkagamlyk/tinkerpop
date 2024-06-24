@@ -422,6 +422,16 @@ class TextP {
   static startingWith(...args) {
     return createTextP('startingWith', args);
   }
+
+  /** @param {...Object} args */
+  static regex(...args) {
+    return createTextP('regex', args);
+  }
+
+  /** @param {...Object} args */
+  static notRegex(...args) {
+    return createTextP('notRegex', args);
+  }
 }
 
 function createTextP(operator, args) {
@@ -486,9 +496,10 @@ module.exports = {
   barrier: toEnum('Barrier', 'normSack'),
   cardinality: toEnum('Cardinality', 'list set single'),
   column: toEnum('Column', 'keys values'),
-  direction: toEnum('Direction', 'BOTH IN OUT'),
+  direction: toEnum('Direction', 'BOTH IN OUT from_ to'),
   graphSONVersion: toEnum('GraphSONVersion', 'V1_0 V2_0 V3_0'),
   gryoVersion: toEnum('GryoVersion', 'V1_0 V3_0'),
+  merge: toEnum('Merge', 'onCreate onMatch'),
   operator: toEnum('Operator', 'addAll and assign div max min minus mult or sum sumLong'),
   order: toEnum('Order', 'asc desc shuffle'),
   pick: toEnum('Pick', 'any none'),

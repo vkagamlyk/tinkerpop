@@ -19,18 +19,20 @@
 
 package org.apache.tinkerpop.gremlin.process.traversal.translator;
 
-import org.apache.commons.configuration2.ConfigurationConverter;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
+import org.apache.tinkerpop.gremlin.process.traversal.Merge;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.Pick;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Script;
+import org.apache.tinkerpop.gremlin.process.traversal.Text;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
+import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
-import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.TraversalStrategyProxy;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.OrP;
@@ -40,6 +42,7 @@ import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
@@ -53,6 +56,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 
 /**
  * Converts bytecode to a C# string of Gremlin.
@@ -171,12 +175,20 @@ public final class DotNetTranslator implements Translator.ScriptTranslator {
         }
 
         @Override
-        protected String getSyntax(final TraversalOptionParent.Pick o) {
+        protected String getSyntax(final Pick o) {
             return "Pick." + SymbolHelper.toCSharp(o.toString());
         }
 
         @Override
         protected String getSyntax(final Number o) {
+            if (o instanceof Float || o instanceof Double) {
+                if (NumberHelper.isNaN(o))
+                    return (o instanceof Float ? "Single" : "Double") + ".NaN";
+                if (NumberHelper.isPositiveInfinity(o))
+                    return (o instanceof Float ? "Single" : "Double") + ".PositiveInfinity";
+                if (NumberHelper.isNegativeInfinity(o))
+                    return (o instanceof Float ? "Single" : "Double") + ".NegativeInfinity";
+            }
             return o.toString();
         }
 
@@ -346,6 +358,61 @@ public final class DotNetTranslator implements Translator.ScriptTranslator {
                         script.append(", (").append(castSecondArgTo).append(") ");
                         convertToScript(instruction.getArguments()[1]);
                         script.append(",");
+                    } else if (methodName.equals(GraphTraversal.Symbols.mergeE) || methodName.equals(GraphTraversal.Symbols.mergeV)) {
+                        // there must be at least one argument - if null go with Map
+                        final Object instArg = instruction.getArguments()[0];
+                        if (null == instArg) {
+                            script.append("(IDictionary<object,object>) null");
+                        } else {
+                            if (instArg instanceof Traversal) {
+                                script.append("(ITraversal) ");
+                            } else {
+                                script.append("(IDictionary<object,object>) ");
+                            }
+                            convertToScript(instArg);
+                        }
+                        script.append(",");
+                    } else if (methodName.equals(GraphTraversal.Symbols.call)) {
+                        // call()
+                        // call(String)
+                        // call(String, Map)
+                        // call(String, Traversal)
+                        // call(String, Map, Traversal)
+                        final Object[] instArgs = instruction.getArguments();
+                        if (instArgs.length > 0) {
+                            // [0] always String
+                            convertToScript(instArgs[0]);
+                            script.append(",");
+                        }
+                        if (instArgs.length > 1) {
+                            // [1] could be Map or Traversal
+                            if (instArgs[1] instanceof Traversal || instArgs[1] instanceof Bytecode) {
+                                script.append("(ITraversal) ");
+                            } else {
+                                script.append("(IDictionary<object,object>) ");
+                            }
+                            convertToScript(instArgs[1]);
+                            script.append(",");
+                        }
+                        if (instArgs.length > 2) {
+                            // [2] always Traversal
+                            script.append("(ITraversal) ");
+                            convertToScript(instArgs[2]);
+                            script.append(",");
+                        }
+                    } else if (methodName.equals(GraphTraversal.Symbols.option) &&
+                            instruction.getArguments().length == 2 && instruction.getArguments()[0] instanceof Merge) {
+                        final Object[] instArgs = instruction.getArguments();
+                        // trying to catch option(Merge,Traversal|Map)
+                        convertToScript(instArgs[0]);
+                        script.append(", ");
+                        if (instArgs[1] instanceof Traversal || instArgs[1] instanceof Bytecode) {
+                            script.append("(ITraversal) ");
+                        } else {
+                            script.append("(IDictionary<object,object>) ");
+                        }
+                        convertToScript(instArgs[1]);
+                        script.append(",");
                     } else {
                         final Object[] instArgs = instruction.getArguments();
                         for (int idx = 0; idx < instArgs.length; idx++) {
@@ -354,10 +421,10 @@ public final class DotNetTranslator implements Translator.ScriptTranslator {
                             // them i guess
                             if (null == instArg) {
                                 if ((methodName.equals(GraphTraversal.Symbols.addV) && idx % 2 == 0) ||
-                                     methodName.equals(GraphTraversal.Symbols.hasLabel)||
-                                     methodName.equals(GraphTraversal.Symbols.hasKey)) {
+                                        (methodName.equals(GraphTraversal.Symbols.hasLabel) && instArgs.length == 1 && idx == 0) ||
+                                        (methodName.equals(GraphTraversal.Symbols.hasKey) && instArgs.length == 1 && idx == 0)) {
                                     script.append("(string) ");
-                                } else if (methodName.equals(GraphTraversal.Symbols.hasValue)) {
+                                } else if (methodName.equals(GraphTraversal.Symbols.hasValue) && idx == 0) {
                                     script.append("(object) ");
                                 } else if (methodName.equals(GraphTraversal.Symbols.has)) {
                                     if (instArgs.length == 2) {
@@ -392,7 +459,17 @@ public final class DotNetTranslator implements Translator.ScriptTranslator {
         @Override
         protected Script produceScript(final P<?> p) {
             if (p instanceof TextP) {
-                script.append("TextP.").append(SymbolHelper.toCSharp(p.getBiPredicate().toString())).append("(");
+                // special case the RegexPredicate since it isn't an enum. toString() for the final default will
+                // typically cover implementations (generally worked for Text prior to 3.6.0)
+                final BiPredicate<?, ?> tp = p.getBiPredicate();
+                if (tp instanceof Text.RegexPredicate) {
+                    final String regexToken = ((Text.RegexPredicate) p.getBiPredicate()).isNegate() ? "NotRegex" : "Regex";
+                    script.append("TextP.").append(regexToken).append("(");
+                } else if (tp instanceof Text) {
+                    script.append("TextP.").append(SymbolHelper.toCSharp(((Text) p.getBiPredicate()).name())).append("(");
+                } else {
+                    script.append("TextP.").append(SymbolHelper.toCSharp(p.getBiPredicate().toString())).append("(");
+                }
                 convertToScript(p.getValue());
             } else if (p instanceof ConnectiveP) {
                 // ConnectiveP gets some special handling because it's reduced to and(P, P, P) and we want it
@@ -430,6 +507,7 @@ public final class DotNetTranslator implements Translator.ScriptTranslator {
 
         static {
             TO_CS_MAP.put(GraphTraversal.Symbols.branch, "Branch<object>");
+            TO_CS_MAP.put(GraphTraversal.Symbols.call, "Call<object>");
             TO_CS_MAP.put(GraphTraversal.Symbols.cap, "Cap<object>");
             TO_CS_MAP.put(GraphTraversal.Symbols.choose, "Choose<object>");
             TO_CS_MAP.put(GraphTraversal.Symbols.coalesce, "Coalesce<object>");

@@ -16,13 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-try:
-    import ujson as json
-except ImportError:
-    import json
+
+import logging
 import struct
 import uuid
 import io
+try:
+    import ujson as json
+    if int(json.__version__[0]) < 2:
+        logging.warning("Detected ujson version below 2.0.0. This is not recommended as precision may be lost.")
+except ImportError:
+    import json
 
 from gremlin_python.structure.io import graphbinaryV1
 from gremlin_python.structure.io import graphsonV2d0
@@ -66,7 +70,7 @@ class Session(Processor):
 
     def bytecode(self, args):
         gremlin = args['gremlin']
-        args['gremlin'] = self._writer.toDict(gremlin)
+        args['gremlin'] = self._writer.to_dict(gremlin)
         aliases = args.get('aliases', '')
         if not aliases:
             aliases = {'g': 'g'}
@@ -81,7 +85,7 @@ class Traversal(Processor):
 
     def bytecode(self, args):
         gremlin = args['gremlin']
-        args['gremlin'] = self._writer.toDict(gremlin)
+        args['gremlin'] = self._writer.to_dict(gremlin)
         aliases = args.get('aliases', '')
         if not aliases:
             aliases = {'g': 'g'}
@@ -153,7 +157,7 @@ class GraphSONMessageSerializer(object):
 
     def deserialize_message(self, message):
         msg = json.loads(message.decode('utf-8'))
-        return self._graphson_reader.toObject(msg)
+        return self._graphson_reader.to_object(msg)
 
 
 class GraphSONSerializersV2d0(GraphSONMessageSerializer):
@@ -249,17 +253,17 @@ class GraphBinarySerializersV1(object):
         args = message["args"]
         ba.extend(self.int_pack(len(args)))
         for k, v in args.items():
-            self._graphbinary_writer.toDict(k, ba)
+            self._graphbinary_writer.to_dict(k, ba)
 
             # processor_obj.get_op_args in serialize_message() seems to already handle bytecode. in python 3
             # because bytearray isn't bound to a type in graphbinary it falls through the writeObject() and
             # just works but python 2 bytearray is bound to ByteBufferType so it writes DataType.bytebuffer
             # rather than DataType.bytecode and the server gets confused. special casing this for now until
             # it can be refactored
-            if k == "gremlin":
+            if k == "gremlin" and isinstance(v, bytearray):
                 ba.extend(v)
             else:
-                self._graphbinary_writer.toDict(v, ba)
+                self._graphbinary_writer.to_dict(v, ba)
 
         return bytes(ba)
 
@@ -268,12 +272,12 @@ class GraphBinarySerializersV1(object):
 
         b.read(1)  # version
 
-        request_id = str(self._graphbinary_reader.toObject(b, graphbinaryV1.DataType.uuid))
+        request_id = str(self._graphbinary_reader.to_object(b, graphbinaryV1.DataType.uuid))
         status_code = self.int32_unpack(b.read(4))[0]
-        status_msg = self._graphbinary_reader.toObject(b, graphbinaryV1.DataType.string)
-        status_attrs = self._graphbinary_reader.toObject(b, graphbinaryV1.DataType.map, nullable=False)
-        meta_attrs = self._graphbinary_reader.toObject(b, graphbinaryV1.DataType.map, nullable=False)
-        result = self._graphbinary_reader.toObject(b)
+        status_msg = self._graphbinary_reader.to_object(b, graphbinaryV1.DataType.string)
+        status_attrs = self._graphbinary_reader.to_object(b, graphbinaryV1.DataType.map, nullable=False)
+        meta_attrs = self._graphbinary_reader.to_object(b, graphbinaryV1.DataType.map, nullable=False)
+        result = self._graphbinary_reader.to_object(b)
 
         b.close()
 

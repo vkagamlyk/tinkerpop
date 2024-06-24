@@ -21,15 +21,15 @@ limitations under the License.
     <parent>
         <groupId>org.apache.tinkerpop</groupId>
         <artifactId>tinkerpop</artifactId>
-        <version>3.5.4-SNAPSHOT</version>
+        <version>3.7.0-SNAPSHOT</version>
     </parent>
     <artifactId>gremlint</artifactId>
     <name>Apache TinkerPop :: Gremlint</name>
     <properties>
         <maven.test.skip>false</maven.test.skip>
         <skipTests>${maven.test.skip}</skipTests>
-        <npm.version>6.14.6</npm.version>
-        <node.version>v10.22.0</node.version>
+        <npm.version>8.1.0</npm.version>
+        <node.version>v16.13.0</node.version>
     </properties>
     <build>
         <directory>${basedir}/target</directory>
@@ -39,7 +39,7 @@ limitations under the License.
                 <plugin>
                     <groupId>com.github.eirslett</groupId>
                     <artifactId>frontend-maven-plugin</artifactId>
-                    <version>1.10.0</version>
+                    <version>1.12.1</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -68,11 +68,21 @@ limitations under the License.
                             <goal>execute</goal>
                         </goals>
                         <configuration>
+                            <properties>
+                                <property>
+                                    <name>projectBaseDir</name>
+                                    <value>${project.basedir}</value>
+                                </property>
+                                <property>
+                                    <name>mavenVersion</name>
+                                    <value>${project.version}</value>
+                                </property>
+                            </properties>
                             <scripts>
                                 <script>
-                                    def mavenVersion = "${project.version}"
                                     def versionForJs = mavenVersion.replace("-SNAPSHOT", "-alpha1")
-                                    def file = new File("${project.basedir}/package.json")
+                                    def platformAgnosticBaseDirPath = project.basedir.getAbsolutePath().replace("\\","/")
+                                    def file = new File(platformAgnosticBaseDirPath + "/package.json")
                                     file.write(file.getText("UTF-8").replaceFirst(/"version": "(.*)",/, "\"version\": \"" + versionForJs + "\","))
                                 </script>
                             </scripts>
@@ -109,7 +119,7 @@ limitations under the License.
                             <goal>npm</goal>
                         </goals>
                         <configuration>
-                            <arguments>install</arguments>
+                            <arguments>ci</arguments>
                         </configuration>
                     </execution>
                     <execution>

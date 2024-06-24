@@ -104,11 +104,11 @@ func TestStrategy(t *testing.T) {
 	t.Run("Test read with SubgraphStrategy", func(t *testing.T) {
 		g := getModernGraph(t, testNoAuthUrl, &AuthInfo{}, &tls.Config{})
 		defer g.remoteConnection.Close()
-
 		config := SubgraphStrategyConfig{
-			Vertices:         T__.HasLabel(testLabel),
-			Edges:            nil,
-			VertexProperties: nil,
+			Vertices:              T__.HasLabel(testLabel),
+			Edges:                 nil,
+			VertexProperties:      nil,
+			CheckAdjacentVertices: nil,
 		}
 		count, err := g.WithStrategies(SubgraphStrategy(config)).V().Count().ToList()
 		assert.Nil(t, err)
@@ -119,7 +119,7 @@ func TestStrategy(t *testing.T) {
 		assert.Equal(t, int32(0), val)
 	})
 
-	t.Run("Test bytecode generation for MatchAlgorithmStrategy", func(t *testing.T) {
+	t.Run("Test Bytecode generation for MatchAlgorithmStrategy", func(t *testing.T) {
 		g := getModernGraph(t, testNoAuthUrl, &AuthInfo{}, &tls.Config{})
 		defer g.remoteConnection.Close()
 

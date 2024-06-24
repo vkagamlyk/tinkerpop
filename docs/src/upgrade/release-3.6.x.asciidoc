@@ -1,0 +1,892 @@
+////
+Licensed to the Apache Software Foundation (ASF) under one or more
+contributor license agreements.  See the NOTICE file distributed with
+this work for additional information regarding copyright ownership.
+The ASF licenses this file to You under the Apache License, Version 2.0
+(the "License"); you may not use this file except in compliance with
+the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+////
+
+= TinkerPop 3.6.0
+
+image::https://raw.githubusercontent.com/apache/tinkerpop/master/docs/static/images/gremlin-victorian.png[width=185]
+
+*Tinkerheart*
+
+== TinkerPop 3.6.2
+
+*Release Date: NOT OFFICIALLY RELEASED YET*
+
+Please see the link:https://github.com/apache/tinkerpop/blob/3.6.2/CHANGELOG.asciidoc#release-3-6-2[changelog] for a complete list of all the modifications that are part of this release.
+
+=== Upgrading for Users
+
+=== Upgrading for Providers
+
+==== Graph System Providers
+
+===== Callbacks for GraphManager
+
+The `GraphManager` class now has several new methods that act as callbacks for various Gremlin Server operations
+related to query processing. Overriding these methods in a `GraphManager` implementation can help make it easier for
+providers to get notification of a query starting and whether it ends in success or failure. The feature may even
+be useful to Gremlin Server users who simply wish to develop more advanced logging capabilities and other custom
+features without having to extend more complicated classes within the Gremlin Server structure.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2806[TINKERPOP-2806]
+
+===== Gherkin Tests Moved to Resources
+
+The Gherkin feature tests have been moved from `gremlin-test/features` to actual resources on `gremlin-test`. In this
+way, these files can be more easily referenced from the classpath. Providers can now configure their `CucumberOptions`
+in this fashion (taken from TinkerGraph):
+
+[source,java]
+----
+@CucumberOptions(
+        tags = "not @RemoteOnly and not @GraphComputerOnly and not @AllowNullPropertyValues",
+        glue = { "org.apache.tinkerpop.gremlin.features" },
+        objectFactory = TinkerGraphFeatureTest.TinkerGraphGuiceFactory.class,
+        features = { "classpath:/org/apache/tinkerpop/gremlin/test/features" },
+        plugin = {"progress", "junit:target/cucumber.xml"})
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2804[TINKERPOP-2804]
+
+== TinkerPop 3.6.1
+
+*Release Date: July 18, 2022*
+
+Please see the link:https://github.com/apache/tinkerpop/blob/3.6.1/CHANGELOG.asciidoc#release-3-6-1[changelog] for a complete list of all the modifications that are part of this release.
+
+=== Upgrading for Users
+
+==== GraphBinary Default Serialization
+
+Python and .NET have support for GraphBinary at least since 3.5.0, but kept GraphSON 3 by default. It now seems safe
+to make GraphBinary the default in 3.6.x. With this change, all language variants now have GraphBinary as their default
+serialization format.
+
+To continue using the GraphSON, explicitly specify it as the serializer to use in the configuration.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2723[TINKERPOP-2723]
+
+== TinkerPop 3.6.0
+
+*Release Date: April 4, 2022*
+
+Please see the link:https://github.com/apache/tinkerpop/blob/3.6.0/CHANGELOG.asciidoc#release-3-6-0[changelog] for a complete list of all the modifications that are part of this release.
+
+=== Upgrading for Users
+
+==== element() Step
+
+The new `element()` step provides a way to traverse from a `Property` to the `Element` that owns it:
+
+[source,text]
+----
+gremlin> g = traversal().withEmbedded(TinkerFactory.createTheCrew())
+==>graphtraversalsource[tinkergraph[vertices:6 edges:14], standard]
+
+// VertexProperty -> Vertex
+gremlin> g.V(1).properties().element().limit(1)
+==>v[1]
+
+// (Edge)Property -> Edge
+gremlin> g.E(13).properties().element().limit(1)
+==>e[13][1-develops->10]
+
+// (Meta)Property -> VertexProperty
+gremlin> g.V(1).properties().properties().element().limit(1)
+==>vp[location->san diego]
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2713[TINKERPOP-2713],
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#element-step[Reference Documentation],
+link:https://tinkerpop.apache.org/docs/3.6.0/dev/provider/#_element[Provider Documentation]
+
+==== mergeV() and mergeE()
+
+One of the most commonly used patterns in Gremlin is the use of `fold().coalesce(unfold(), ...)` to perform upsert-like
+functionality. While this pattern is quite flexible, it can also be confusing to new users and for certain use cases
+challenging to get the pattern correctly implemented. For providers, the pattern is difficult to properly optimize
+because it can branch into complexity quite quickly making it hard to identify a section of Gremlin for an upsert and
+therefore is not executed as efficiently as it might have been otherwise.
+
+The new `mergeV()` and `mergeE()` steps greatly simplify this pattern and as the pattern is condensed into a single
+step it should be straightforward for providers to optimize as part of their implementations. The following example
+demonstrates just how much easier implementing a basic upsert of a vertex has gotten:
+
+[source,text]
+----
+// prior to 3.6.0, use fold().coalesce(unfold(), ...)
+gremlin> g.V().
+......1>   has('person', 'name', 'vadas').has('age',27).
+......2>   fold().
+......3>   coalesce(unfold(),
+......4>            addV('person').property('name', 'vadas').property('age', 27)).
+......5>   elementMap()
+==>[id:2,label:person,name:vadas,age:27]
+
+// 3.6.0
+gremlin> g.mergeV([(T.label): 'person', name:'vadas', age: 27]).
+......1>   elementMap()
+==>[id:2,label:person,name:vadas,age:27]
+----
+
+In a more complex example below, if the vertex is found, then it is updated with an "age" of "30" otherwise it is
+created with an "age" of 27:
+
+[source,text]
+----
+// prior to 3.6.0, use fold().coalesce(unfold(), ...)
+gremlin> g.V().has('person','name','vadas').has('age', 27).
+......1>   fold().
+......2>   coalesce(unfold().property('age',30),
+......3>            addV('person').property('name','vadas').property('age',27)).
+......4>   elementMap()
+==>[id:2,label:person,name:vadas,age:30]
+
+// 3.6.0
+gremlin> g.mergeV([(T.label): 'person', name:'vadas', age: 27]).
+......1>     option(onMatch, [age: 30]).
+......2>   elementMap()
+==>[id:2,label:person,name:vadas,age:30]
+----
+
+The pattern was even more complicated for upserting edges, but the following example demonstrates how much easier
+`mergeE()` is to follow:
+
+[source,text]
+----
+// prior to 3.6.0, use a form of coalesce()
+gremlin> g.V().has('person','name','vadas').as('v').
+......1>            V().has('software','name','ripple').
+......2>            coalesce(__.inE('created').where(outV().as('v')),
+......3>                     addE('created').from('v').property('weight',0.5)).
+......4>   elementMap()
+==>[id:0,label:created,IN:[id:5,label:software],OUT:[id:2,label:person],weight:0.5]
+
+// 3.6.0
+gremlin> ripple = g.V().has('software','name','ripple').next()
+==>v[5]
+gremlin> g.V().has('person','name','vadas').
+......1>    mergeE([(T.label):'created',(to):ripple, weight: 0.5]).
+......2>    elementMap()
+==>[id:0,label:created,IN:[id:5,label:software],OUT:[id:2,label:person],weight:0.5]
+----
+
+For those currently using the `fold().coalesce(unfold(), ...)` pattern, there is no need to be concerned with
+incompatibility as a result of these new steps. That pattern is still perfectly usable and valid Gremlin, but whenever
+possible it would be best to migrate away from it as graph providers ramp up on 3.6.0 support and introduce important
+write optimizations that will make a big difference in performance.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2681[TINKERPOP-2681],
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#mergee-step[mergeE()-step],
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#mergev-step[mergeV()-step]
+
+==== Direction Aliases
+
+Aliases have been added to `Direction` to allow for `OUT` to be referred to as `from` and `IN` can be referred to as
+`to`, which is a bit more friendly and matches more closely with existing Gremlin syntax.
+
+==== Moved Pick
+
+`Pick` was formerly a nested class of `TraversalOptionParent`, but has now been promoted to being a class on its own
+in `org.apache.tinkerpop.gremlin.process.traversal.Pick`.
+
+==== Consistent by() Behavior
+
+The `by()` modulator is critical to the usage of Gremlin. When used in conjunction with a step that supports it, the
+arguments to the `by()` modulator shift the behavior of the internals of the step.  The behavior that `by()` introduces
+has not always been consistent with some overloads establishing `null` traversers, others throwing exceptions that are
+hard to digest, some filtering, etc.
+
+In 3.6.0, the rules for the `by()` modulator are made straightforward. If the `by()` produces a result then it is
+said to be "productive" and its value is propagated to the step for use. If the `by()` does not produce a result then
+the traverser to which it was to be applied is filtered.
+
+The following sections demonstrate the behavior in 3.5.x alongside the new 3.6.0 behavior:
+
+*aggregate()*
+
+[source,text]
+----
+gremlin> g.V().aggregate('a').by('age').cap('a') // 3.5.x
+==>[29,27,null,null,32,35]
+gremlin> g.V().aggregate('a').by('age').cap('a') // 3.6.0
+==>[29,27,32,35]
+gremlin> g.V().aggregate('a').by(__.values('age')).cap('a') // 3.6.0
+==>[29,27,32,35]
+gremlin> g.V().aggregate('a').by(out()).cap('a') // 3.5.x
+The provided traverser does not map to a value: v[2]->[VertexStep(OUT,vertex)]
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().aggregate('a').by(out()).cap('a') // 3.6.0
+==>[v[3],v[3],v[5]]
+gremlin> g.V().aggregate('a').by('age') // same for 3.5.x and future
+==>v[1]
+==>v[2]
+==>v[3]
+==>v[4]
+==>v[5]
+==>v[6]
+----
+
+*cyclicPath()*
+
+[source,text]
+----
+gremlin> g.V().has('person','name','marko').both().both().cyclicPath().by('age') // 3.5.x
+==>v[1]
+java.lang.NullPointerException
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().has('person','name','marko').both().both().cyclicPath().by('age') // 3.6.0
+==>v[1]
+==>v[1]
+----
+
+*dedup()*
+
+[source,text]
+----
+gremlin> g.V().both().dedup().by('age').elementMap() // 3.5.x
+==>[id:3,label:software,name:lop,lang:java]
+==>[id:2,label:person,name:vadas,age:27]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:6,label:person,name:peter,age:35]
+gremlin> g.V().both().dedup().by('age').elementMap() // 3.6.0
+==>[id:2,label:person,name:vadas,age:27]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:6,label:person,name:peter,age:35]
+----
+
+When using `dedup()` over labels all labels must produce or the path will be filtered:
+
+[source,text]
+----
+gremlin> g.V().as('a').both().as('b').both().as('c').dedup('a','b').by('age').select('a','b','c').by('name')  // 3.5.x
+The provided start does not map to a value: v[3]->value(age)
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().as('a').both().as('b').both().as('c').dedup('a','b').by('age').select('a','b','c').by('name') // 3.6.0
+==>[a:marko,b:vadas,c:marko]
+==>[a:marko,b:josh,c:ripple]
+==>[a:vadas,b:marko,c:lop]
+==>[a:josh,b:marko,c:lop]
+----
+
+*group()*
+
+There are two `by()` modulators that can be assigned to `group()``. The first modulator is meant to identify the key to
+group on and will filter values without that key out of the resulting `Map`.
+
+[source,text]
+----
+gremlin> g.V().group().by('age').by('name') // 3.5.x
+==>[null:[lop,ripple],32:[josh],35:[peter],27:[vadas],29:[marko]]
+gremlin> g.V().group().by('age').by('name') // 3.6.0
+==>[32:[josh],35:[peter],27:[vadas],29:[marko]]
+----
+
+The second `by()`` is applied to the result as a reducing operation and will filter away entries in the `List` value of
+each key.
+
+[source,text]
+----
+gremlin> g.V().group().by('name').by('age') // 3.5.x
+==>[ripple:[null],peter:[35],vadas:[27],josh:[32],lop:[null],marko:[29]]
+gremlin> g.V().group().by('name').by('age') // 3.6.0
+==>[ripple:[],peter:[35],vadas:[27],josh:[32],lop:[],marko:[29]]
+----
+
+*groupCount()*
+
+[source,text]
+----
+gremlin> g.V().groupCount().by('age') // 3.5.x
+==>[null:2,32:1,35:1,27:1,29:1]
+gremlin> g.V().groupCount().by('age') // 3.6.0
+==>[32:1,35:1,27:1,29:1]
+----
+
+*math()*
+
+The `math()` step requires that the result of the `by()` be a `Number`, so a result of `null` will still result in a
+runtime exception. Filtering will eliminate such errors, though a runtime error may still be present should the
+modulator produce a non-numeric value.
+
+[source,text]
+----
+gremlin> g.V().math('_+1').by('age') // 3.5.x
+==>30.0
+==>28.0
+The variable _ for math() step must resolve to a Number - it is instead of type null with value null
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().math('_+1').by('age') // 3.6.0
+==>30.0
+==>28.0
+==>33.0
+==>36.0
+----
+
+*order()*
+
+[source,text]
+----
+gremlin> g.V().both().order().by('age').elementMap() // 3.5.x
+==>[id:3,label:software,name:lop,lang:java]
+==>[id:3,label:software,name:lop,lang:java]
+==>[id:3,label:software,name:lop,lang:java]
+==>[id:5,label:software,name:ripple,lang:java]
+==>[id:2,label:person,name:vadas,age:27]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:6,label:person,name:peter,age:35]
+gremlin> g.V().both().order().by('age').elementMap() // 3.6.0
+==>[id:2,label:person,name:vadas,age:27]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:1,label:person,name:marko,age:29]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:4,label:person,name:josh,age:32]
+==>[id:6,label:person,name:peter,age:35]
+----
+
+*path()*
+
+All `by()` modulators must be productive for the filter to be satisfied.
+
+[source,text]
+----
+gremlin> g.V().both().path().by('age') // 3.5.x
+==>[29,null]
+==>[29,27]
+==>[29,32]
+==>[27,29]
+==>[null,29]
+==>[null,32]
+==>[null,35]
+==>[32,null]
+==>[32,null]
+==>[32,29]
+==>[null,32]
+==>[35,null]
+gremlin> g.V().both().path().by('age') // 3.6.0
+==>[29,27]
+==>[29,32]
+==>[27,29]
+==>[32,29]
+----
+
+*project()*
+
+The `project()` step will produce an incomplete `Map` by filtering away keys of unproductive `by()` modulators.
+
+[source,text]
+----
+gremlin> g.V().project('n','a').by('name').by('age') // 3.5.x
+==>[n:marko,a:29]
+==>[n:vadas,a:27]
+==>[n:lop,a:null]
+==>[n:josh,a:32]
+==>[n:ripple,a:null]
+==>[n:peter,a:35]
+gremlin> g.V().project('n','a').by('name').by('age') // 3.6.0
+==>[n:marko,a:29]
+==>[n:vadas,a:27]
+==>[n:lop]
+==>[n:josh,a:32]
+==>[n:ripple]
+==>[n:peter,a:35]
+----
+
+*propertyMap()*
+
+[source,text]
+----
+gremlin> g.V().propertyMap().by(is('x')) // 3.5.x
+The provided start does not map to a value: [vp[name→marko]]→[IsStep(eq(x))]
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().propertyMap().by(is('x')) // 3.6.0
+==>[name:[],age:[]]
+==>[name:[],age:[]]
+==>[name:[],lang:[]]
+==>[name:[],age:[]]
+==>[name:[],lang:[]]
+==>[name:[],age:[]]
+----
+
+*sack()*
+
+[source,text]
+----
+gremlin> g.V().sack(assign).by('age').sack() // 3.5.x
+==>29
+==>27
+==>null
+==>32
+==>null
+==>35
+gremlin> g.V().sack(assign).by('age').sack() // 3.6.0
+==>29
+==>27
+==>32
+==>35
+----
+
+*sample()*
+
+[source,text]
+----
+gremlin> g.V().both().sample(2).by('age') // 3.5.x
+java.lang.NullPointerException
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().both().sample(2).by('age') // 3.6.0
+==>v[1]
+==>v[4]
+----
+
+*select()*
+
+All `by()` modulators must be productive for the filter to be satisfied.
+
+[source,text]
+----
+gremlin> g.V().has('person','name','marko').as('a').both().as('b').select('a','b').by('age') // 3.5.x
+==>[a:29,b:null]
+==>[a:29,b:27]
+==>[a:29,b:32]
+gremlin> g.V().has('person','name','marko').as('a').both().as('b').select('a','b').by('age') // 3.6.0
+==>[a:29,b:27]
+==>[a:29,b:32]
+----
+
+*simplePath()*
+
+[source,text]
+----
+gremlin> g.V().has('person','name','marko').both().both().simplePath().by('age') // 3.5.x
+java.lang.NullPointerException
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().has('person','name','marko').both().both().simplePath().by('age') // 3.6.0
+gremlin>
+----
+
+*tree()*
+
+All `by()` modulators must be productive for the filter to be satisfied.
+
+[source,text]
+----
+gremlin> g.V().out().tree().by('age') // 3.5.x
+==>[32:[null:[]],35:[null:[]],29:[null:[],32:[],27:[]]]
+gremlin> g.V().out().tree().by('age') // 3.6.0
+==>[32:[],35:[],29:[32:[],27:[]]]
+----
+
+*valueMap()*
+
+[source,text]
+----
+gremlin> g.V().valueMap().by(is('x')) // 3.5.x
+The provided start does not map to a value: [marko]→[IsStep(eq(x))]
+Type ':help' or ':h' for help.
+Display stack trace? [yN]n
+gremlin> g.V().valueMap().by(is('x')) // 3.6.0
+==>[name:[],age:[]]
+==>[name:[],age:[]]
+==>[name:[],lang:[]]
+==>[name:[],age:[]]
+==>[name:[],lang:[]]
+==>[name:[],age:[]]
+----
+
+*where()*
+
+[source,text]
+----
+gremlin> g.V().as('a').both().both().as('b').where('a',eq('b')).by('age') // 3.5.x
+==>v[1]
+==>v[1]
+==>v[1]
+==>v[2]
+==>v[3]
+==>v[5]
+==>v[3]
+==>v[3]
+==>v[4]
+==>v[4]
+==>v[4]
+==>v[5]
+==>v[3]
+==>v[6]
+gremlin> g.V().as('a').both().both().as('b').where('a',eq('b')).by('age') // 3.6.0
+==>v[1]
+==>v[1]
+==>v[1]
+==>v[2]
+==>v[4]
+==>v[4]
+==>v[4]
+==>v[6]
+----
+
+For the most part, this change largely removes runtime exceptions and since most uses cases are not likely to rely
+on those for query execution, existing code should not be broken by this upgrade. However, users who relied on 3.5.x
+behavior where `by()` might propagate a `null` would however see a behavioral change. To temporarily restore the old
+behavior, simply include `g.withStrategies(ProductiveByStrategy)` in the traversal configuration, which will force the
+`null` to be produced. Ultimately, it would be best not to rely on this strategy in the long term however and convert
+Gremlin that requires it to behave properly without it.
+
+For example, if in 3.5.x there was a traversal like `g.V().group().by('age')` and "age" is known to not always be a
+valid key, the appropriate change would be to propagate `null` explicitly as with:
+`g.V().group().by(coalesce(values('age'), constant(null)))`.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2635[TINKERPOP-2635]
+
+==== TextP Regex
+
+A number of graph databases have included support for regular expressions text predicates and now TinkerPop includes
+a `regex()` option to `TextP`:
+
+[source,text]
+----
+gremlin> g.V().has('person', 'name', regex('peter')).values('name')
+==>peter
+gremlin> g.V().has('person', 'name', regex('r')).values('name')
+==>marko
+==>peter
+gremlin> g.V().has('person', 'name', regex('r$')).values('name')
+==>peter
+gremlin> g.V().has('person', 'name', regex('a[rd]')).values('name')
+==>marko
+==>vadas
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2652[TINKERPOP-2652]
+
+==== gremlin-annotations
+
+There is a new module called `gremlin-annotations` and it holds the annotations used to construct
+link:https://tinkerpop.apache.org/docs/x.y.z/reference/#gremlin-java-dsl[Java-based Gremlin DSLs]. These annotations
+were formerly in `gremlin-core` and therefore it will be necessary to modify dependencies accordingly when upgrading
+to 3.6.0. Package and class names have remained the same and general usage is unchanged.
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.apache.tinkerpop</groupId>
+    <artifactId>gremlin-annotations</artifactId>
+    <version>3.6.0</version>
+</dependency>
+----
+
+It is worth noting that `gremlin-groovy` utilized the DSL annotations to construct the
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#credentials-dsl[Credentials DSL] so the `gremlin-annotations`
+package is now explicitly associated to `gremlin-groovy` but as an `<optional>` dependency.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2411[TINKERPOP-2411]
+
+==== fail() Step
+
+The new `fail()` step provides a way to immediately terminate a traversal with a runtime exception. In the Gremlin
+Console, the exception will be rendered as follows which helps provide some context to the failure:
+
+[source,text]
+----
+gremlin> g.V().fail("nope!")
+fail() Step Triggered
+=====================
+Message > nope!
+Traverser> v[1]
+  Bulk   > 1
+Traversal> V().fail()
+Metadata > {}
+=====================
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2635[TINKERPOP-2635],
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#fail-step[Reference Documentation]
+
+==== Null for T
+
+In 3.5.x, calling `property()` with a key that is of type `T` and a value that is `null` or calling `addV()` with a
+`null` label is processed as a valid traversal and default values are used. That approach allows opportunities for
+unexpected problems should a variable being passed as a parameter end up accidentally shifting to `null` without the
+caller's knowledge. Starting in 3.6.0, such traversals will generate an exception during construction of the traversal.
+
+It is still possible to call `addV()` with no arguments to assume a default `label` and `id` generation remains
+implementation specific with some graphs accepting `id` and others ignoring it to generate their own. Both value of
+`T` remain immutable.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2611[TINKERPOP-2611]
+
+==== Logging Changes
+
+In Gremlin Server and Gremlin Console distributions, the default logging implementation of log4j 1.2.x has been
+replaced by logback 1.2.x given link:https://web.nvd.nist.gov/view/vuln/detail?vulnId=CVE-2019-17571[CVE-2019-17571].
+While it was easy to replace log4j for users of the zip distributions, it was a little harder for users to change
+our packaged Docker containers which should work more cleanly out of the box.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2534[TINKERPOP-2534]
+
+==== Short and Byte
+
+Numeric operations around `short` and `byte` have not behaved quite like `int` and `long`. Here is an example of a
+`sum` operation with `sack()`:
+
+[source,text]
+----
+gremlin> g.withSack((short) 2).inject((short) 1, (int) 2).sack(sum).sack()
+==>3
+==>4
+gremlin> g.withSack((short) 2).inject((short) 1, (int) 2).sack(sum).sack().collect{it.class}
+==>class java.lang.Integer
+==>class java.lang.Integer
+gremlin> g.withSack((short) 2).inject((short) 1, (long) 2).sack(sum).sack().collect{it.class}
+==>class java.lang.Integer
+==>class java.lang.Long
+gremlin> g.withSack((short) 2).inject((short) 1,(byte) 2).sack(sum).sack().collect{it.class}
+==>class java.lang.Integer
+==>class java.lang.Integer
+----
+
+Note that the type returned for the the `sum` should be the largest type encountered in the operation, thus if a
+`long + int` would return `long` or a `byte + int` would return `int`. The last example above shows inconsistency in
+this rule when dealing with types `short` and `byte` which simply promote them to `int`.
+
+For 3.6.0, that inconsistency is resolved and may be a breaking change should code be relying on the integer promotion.
+
+[source,text]
+----
+gremlin> g.withSack((short) 2).inject((short) 1,(byte) 2).sack(sum).sack().collect{it.class}
+==>class java.lang.Short
+==>class java.lang.Short
+gremlin> g.withSack((byte) 2).inject((byte) 1,(byte) 2).sack(sum).sack().collect{it.class}
+==>class java.lang.Byte
+==>class java.lang.Byte
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2610[TINKERPOP-2610]
+
+==== Groovy in gremlin-driver
+
+The `gremlin-driver` module no longer depends on `groovy` or `groovy-json`. It became an `<optional>` dependency in
+3.5.0 and general deprecation of the serializers for the `JsonBuilder` class from Groovy (which was the only reason the
+dependency existed in the first place) occurred in 3.5.2. As they were made `<optional>` it is likely that users who
+required those packages have already adjusted their dependencies to explicitly include them. As for those who still
+make use of `JsonBuilder` serialization for some reason, the only recourse is to find the code in TinkerPop and
+maintain it independently. The following classes were removed as of this change (links go to their 3.5.1 versions):
+
+* link:https://github.com/apache/tinkerpop/blob/3.5.1/gremlin-driver/src/main/java/org/apache/tinkerpop/gremlin/driver/ser/JsonBuilderGryoSerializer.java[JsonBuilderGryoSerializer]
+* link:https://github.com/apache/tinkerpop/blob/3.5.1/gremlin-driver/src/main/java/org/apache/tinkerpop/gremlin/driver/ser/AbstractGraphSONMessageSerializerV1d0.java#L170-L184[AbstractGraphSONMessageSerializerV1d0$JsonBuilderJacksonSerializer]
+* link:https://github.com/apache/tinkerpop/blob/3.5.1/gremlin-driver/src/main/java/org/apache/tinkerpop/gremlin/driver/ser/AbstractGraphSONMessageSerializerV2d0.java#L168-L182[AbstractGraphSONMessageSerializerV2d0$JsonBuilderJacksonSerializer]
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2593[TINKERPOP-2593]
+
+==== Removed Gryo MessageSerializers
+
+Gryo `MessageSerializer` implementations were deprecated at 3.4.3 (GryoLite at 3.2.6) in favor of GraphBinary. As
+GraphBinary has been the default implementation for some time now and given that Gryo is a JVM-only format which
+reduces its usability within Gremlin Language Variants, it seemed like the right time to remove the Gryo
+`MessageSerializer` implementations from the code base. Gryo may still be used for file based applications.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2639[TINKERPOP-2639]
+
+==== GroovyTranslator of gremlin-groovy
+
+`GroovyTranslator` has been removed from the `gremlin-groovy` module. Please update any code using that class to
+instead use `org.apache.tinkerpop.gremlin.process.traversal.translator.GroovyTranslator` which is found in
+`gremlin-core`.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2657[TINKERPOP-2657]
+
+==== gremlin-python Step Naming
+
+When gremlin-python was first built, it followed the Gremlin step names perfectly and didn't account well for Python
+keywords that those steps conflicted with. As this conflict led to problems in usage, steps that matched keywords were
+renamed to have an underscore suffix (e.g. `sum()` to `sum_()`) and the old step names were deprecated.
+
+In 3.6.0, those original conflicting steps names have simply been removed. Please change any of the following steps
+that may still be in use to instead prefer the underscore suffixed versions:
+
+* `filter`
+* `id`
+* `max`
+* `min`
+* `range`
+* `sum`
+
+The full list of steps with the suffix naming can be found in the
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#gremlin-python-differences[Reference Documentation].
+
+In addition to removing the conflicting names, camel cased naming has been deprecated for all Gremlin steps and
+replaced with more Pythonic snake cased names. As this change was merely deprecation, this change is non-breaking at
+this time, but the camel cased steps will be removed in some future major version.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2650[TINKERPOP-2650]
+
+==== `property()` with Map
+
+The `property()` step has been extended to take a `Map` of property key/value pairs as an argument with two new signatures:
+
+```text
+property(Map)
+property(Cardinality, Map)
+```
+
+When called, each individual key/value pair in the `Map` is saved as a property to the element. When the `Cardinality`
+is specified, that cardinality will be applied to all elements in the map as they are saved to the element.
+
+If users need different cardinalities per property, then please use the existing pattern of stringing multiple
+`property()`` calls together.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2665[TINKERPOP-2665]
+
+=== Upgrading for Providers
+
+==== Graph System Providers
+
+===== Gherkin Tests
+
+TinkerPop originally introduced Gherkin-based feature tests when GLVs were first introduced to help provide a language
+agnostic test capability. The Gherkin tests were a near one-to-one copy of the tests of the Gremlin Process Test Suite
+which focus on Gremlin semantics. Unfortunately, having both JVM tests and Gherkin tests meant maintaining two sets
+of tests which were testing identical things.
+
+To simplify the ongoing maintenance of the test suite and to make it even easier to contribute to the enforcement of
+Gremlin semantics, TinkerPop now provides infrastructure in the `gremlin-test` module to run the Gherkin-based tests.
+For 3.6.0, the old test suite remains intact and is not deprecated, but providers are encouraged to implement the
+Gherkin tests as they will include newer tests that may not be in the old test suite and it would be good to gather
+feedback on the new test suite's usage so that when deprecation and removal of the old suite comes to pass the
+transition will not carry as much friction.
+
+Note that the 3.6.0 release includes a convenience zip distribution for `gremlin-test` that packages both the data
+files and Gherkin features files for a release. This new file can be found on the
+link:https://tinkerpop.apache.org/downloads.html[Downloads page] on the website.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2601[TINKERPOP-2601],
+link:https://tinkerpop.apache.org/docs/3.6.0/dev/provider/#gherkin-tests-suite[Provider Documentation]
+
+===== Filters with Mixed Id Types
+
+The requirement that "ids" passed to `Graph.vertices` and `Graph.edges` all be of a single type has been removed. This
+requirement was a bit to prescriptive when there really wasn't a need to enforce such a validation. It even conflicted
+with TinkerGraph operations where mixed `T.id` types is a feature. Graph providers may continue to support this
+requirement if they wish, but it is no longer enforced by TinkerPop and the `Graph.idArgsMustBeEitherIdOrElement` has
+been removed so providers will need to construct their own exception.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2507[TINKERPOP-2507]
+
+===== Comparability/Orderability Semantics
+
+Prior to 3.6, comparability was not well defined and produced exceptions in a variety of cases. The 3.6 release
+rationalizes the comparability semantics, defined in the Graph Provider Documentation. One feature of these semantics
+is the introduction of a Ternary Boolean Logics, where `ERROR` cases are well defined, and errors are no longer
+propagated back to the client as an exception. The `ERROR` value is eventually reduced to `false`, which results in
+the solution being quietly filtered and allows the traversal to proceed normally. For example:
+
+[source,text]
+----
+gremlin> g.inject(1, "foo").is(P.gt(0)).count() // 3.5.x
+Cannot compare 'foo' (String) and '0' (Integer) as both need to be an instance of Number or Comparable (and of the same type)
+Type ':help' or ':h' for help.
+
+gremlin> g.inject(1, "foo").is(P.gt(0)).count() // 3.6.0
+==>1
+----
+
+Prior to 3.6, orderability (OrderGlobalStep) only applied to a single typespace and only to certain types. Attempts to
+order across types resulted in an exception. The 3.6 release introduces total orderability semantics, defined in the
+Graph Provider Documentation. Order now works on all types in the Gremlin language, including collections, structure
+elements (Vertex, Edge, VertexProperty, Property), paths, and all the allowed property value types. Additionally,
+ordering is possible across types, with the type priority defined in the orderability semantics section of the Provider
+Documentation.
+
+[source,text]
+----
+gremlin> g = traversal().withEmbedded(TinkerFactory.createModern())
+==>graphtraversalsource[tinkergraph[vertices:6 edges:6], standard]
+
+// Order across types
+gremlin> g.V().values().order()     // 3.5.x
+java.lang.String cannot be cast to java.lang.Integer
+Type ':help' or ':h' for help.
+gremlin> g.V().values().order()     // 3.6.0
+==>27
+==>29
+==>32
+==>35
+==>java
+==>java
+==>josh
+==>lop
+==>marko
+==>peter
+==>ripple
+==>vadas
+
+// Order by Vertex
+gremlin> g.V().order()      // 3.5.x
+org.apache.tinkerpop.gremlin.tinkergraph.structure.TinkerVertex cannot be cast to java.lang.Comparable
+Type ':help' or ':h' for help.
+Display stack trace? [yN]
+gremlin> g.V().order()      // 3.6.0
+==>v[1]
+==>v[2]
+==>v[3]
+==>v[4]
+==>v[5]
+==>v[6]
+
+// Order by Map / Map.Entry
+gremlin> g.V().valueMap().order()   // 3,5,x
+java.util.LinkedHashMap cannot be cast to java.lang.Comparable
+Type ':help' or ':h' for help.
+Display stack trace? [yN]
+gremlin> g.V().valueMap().order()   // 3.6.0
+==>[name:[josh],age:[32]]
+==>[name:[lop],lang:[java]]
+==>[name:[marko],age:[29]]
+==>[name:[peter],age:[35]]
+==>[name:[ripple],lang:[java]]
+==>[name:[vadas],age:[27]]
+----
+
+Feature tags have been introduced for feature tests that stress these new semantics (see Committer Documentation).
+A new GraphFeature has been added "OrderabilitySemantics" to signify compliance with the new comparability/orderability
+semantics.
+
+See: link:https://tinkerpop.apache.org/docs/3.6.0/dev/provider/#gremlin-semantics-concepts[Gremlin Semantics]
+
+===== Service Call API
+
+3.6 introduces a `call()` API that allows providers to provide custom service calls with their implementation. Providers
+using the reference implementation for `Traversal` execution will implement the `ServiceFactory` and `Service`
+interfaces for each named service they provide. Providers using their own query engines for traveral execution will need
+to provide a call operation that can list the available services (directory service) and execute named services.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2680[TINKERPOP-2680]
+link:https://tinkerpop.apache.org/docs/3.6.0/reference/#element-step[Reference Documentation]
+link:https://tinkerpop.apache.org/docs/3.6.0/dev/provider/#_call[Provider Documentation]

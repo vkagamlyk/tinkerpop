@@ -26,6 +26,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Gherkin.Ast;
@@ -41,45 +42,55 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
 {
     internal class CommonSteps : StepDefinition
     {
-        private GraphTraversalSource _g;
-        private string _graphName;
-        private readonly IDictionary<string, object> _parameters = new Dictionary<string, object>();
-        private ITraversal _traversal;
-        private object[] _result;
+        private GraphTraversalSource? _g;
+        private string? _graphName;
+        private readonly IDictionary<string, object?> _parameters = new Dictionary<string, object?>();
+        private ITraversal? _traversal;
+        private object?[]? _result;
+        private Exception? _error;
 
         private static readonly JsonSerializerOptions JsonDeserializingOptions =
             new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         
         public static ScenarioData ScenarioData { get; set; } = new ScenarioData(new GraphSON3MessageSerializer());
 
-        private static readonly IDictionary<Regex, Func<string, string, object>> Parsers =
-            new Dictionary<string, Func<string, string, object>>
+        private static readonly IDictionary<Regex, Func<string, string, object?>> Parsers =
+            new Dictionary<string, Func<string, string, object?>>
             {
-                {@"d\[(.*)\]\.([ilfdm])", ToNumber},
+                {@"vp\[(.+)\]", ToVertexProperty},
+                {@"d\[(.*)\]\.([bsilfdmn])", ToNumber},
                 {@"D\[(.+)\]", ToDirection},
                 {@"v\[(.+)\]", ToVertex},
                 {@"v\[(.+)\]\.id", (x, graphName) => ToVertex(x, graphName).Id},
-                {@"v\[(.+)\]\.sid", (x, graphName) => ToVertex(x, graphName).Id.ToString()},
+                {@"v\[(.+)\]\.sid", (x, graphName) => ToVertex(x, graphName).Id!.ToString()},
                 {@"e\[(.+)\]", ToEdge},
                 {@"e\[(.+)\].id", (x, graphName) => ToEdge(x, graphName).Id},
-                {@"e\[(.+)\].sid", (x, graphName) => ToEdge(x, graphName).Id.ToString()},
+                {@"e\[(.+)\].sid", (x, graphName) => ToEdge(x, graphName).Id!.ToString()},
                 {@"p\[(.+)\]", ToPath},
                 {@"l\[(.*)\]", ToList},
                 {@"s\[(.*)\]", ToSet},
                 {@"m\[(.+)\]", ToMap},
                 {@"c\[(.+)\]", ToLambda},
                 {@"t\[(.+)\]", ToT},
-                {"null", (_, __) => null}
+                {"null", (_, __) => null},
+                {"true", (_, __) => true},
+                {"false", (_, __) => false},
+                {@"d\[NaN\]", (_, __) => Double.NaN},
+                {@"d\[Infinity\]", (_, __) => Double.PositiveInfinity},
+                {@"d\[-Infinity\]", (_, __) => Double.NegativeInfinity}
             }.ToDictionary(kv => new Regex("^" + kv.Key + "$", RegexOptions.Compiled), kv => kv.Value);
 
         private static readonly IDictionary<char, Func<string, object>> NumericParsers =
             new Dictionary<char, Func<string, object>>
             {
+                { 'b', s => Convert.ToByte(s) },
+                { 's', s => Convert.ToInt16(s) },
                 { 'i', s => Convert.ToInt32(s) },
                 { 'l', s => Convert.ToInt64(s) },
                 { 'f', s => Convert.ToSingle(s, CultureInfo.InvariantCulture) },
                 { 'd', s => Convert.ToDouble(s, CultureInfo.InvariantCulture) },
-                { 'm', s => Convert.ToDecimal(s, CultureInfo.InvariantCulture) }
+                { 'm', s => Convert.ToDecimal(s, CultureInfo.InvariantCulture) },
+                { 'n', s => BigInteger.Parse(s) }
             };
 
         [Given("the (\\w+) graph")]
@@ -97,14 +108,14 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
         [Given("using the parameter (\\w+) defined as \"(.*)\"")]
         public void UsingParameter(string name, string value)
         {
-            var parsedValue = ParseValue(value.Replace("\\\"", "\""), _graphName);
+            var parsedValue = ParseValue(value.Replace("\\\"", "\""), _graphName!);
             _parameters.Add(name, parsedValue);
         }
 
         [Given("using the parameter (\\w+) of P.(\\w+)\\(\"(.*)\"\\)")]
         public void UsingParameterP(string name, string pval, string value)
         {
-            var parsedValue = ParseValue(value.Replace("\\\"", "\""), _graphName);
+            var parsedValue = ParseValue(value.Replace("\\\"", "\""), _graphName!);
             _parameters.Add(name, new P(pval, parsedValue));
         }
 
@@ -115,16 +126,21 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             {
                 throw new InvalidOperationException("g should be a traversal source");
             }
+
+            if (ScenarioData.CurrentFeature!.Tags.Any(t => t.Name == "@GraphComputerOnly"))
+            {
+                _g = _g.WithComputer();
+            }
             
             _traversal =
-                Gremlin.UseTraversal(ScenarioData.CurrentScenario.Name, _g, _parameters);
+                Gremlin.UseTraversal(ScenarioData.CurrentScenario!.Name, _g, _parameters);
         }
 
         [Given("the graph initializer of")]
         public void InitTraversal(string traversalText)
         {
             var traversal =
-                Gremlin.UseTraversal(ScenarioData.CurrentScenario.Name, _g, _parameters);
+                Gremlin.UseTraversal(ScenarioData.CurrentScenario!.Name, _g, _parameters);
             traversal.Iterate();
             
             // We may have modified the so-called `empty` graph
@@ -149,11 +165,18 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             }
             ITraversal t = _traversal;
             var list = new List<object>();
-            while (t.MoveNext())
+            try
             {
-                list.Add(t.Current);
+                while (t.MoveNext())
+                {
+                    list.Add(t.Current);
+                }
+                _result = list.ToArray();
             }
-            _result = list.ToArray();
+            catch (Exception ex)
+            {
+                _error = ex;
+            }
         }
 
         [When("iterated next")]
@@ -163,31 +186,73 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             {
                 throw new InvalidOperationException("Traversal should be set before iterating");
             }
-            _traversal.MoveNext();
-            var result = _traversal.Current;
-            switch (result)
+
+            try
             {
-                case null:
-                    _result = null;
-                    return;
-                case object[] arrayResult:
-                    _result = arrayResult;
-                    return;
-                case IEnumerable enumerableResult:
-                    _result = enumerableResult.Cast<object>().ToArray();
-                    return;
+                _traversal.MoveNext();
+                var result = _traversal.Current;
+                switch (result)
+                {
+                    case null:
+                        _result = null;
+                        return;
+                    case object[] arrayResult:
+                        _result = arrayResult;
+                        return;
+                    case IEnumerable enumerableResult:
+                        _result = enumerableResult.Cast<object>().ToArray();
+                        return;
+                }
             }
-            throw new InvalidCastException($"Can not convert instance of {result.GetType()} to object[]");
+            catch (Exception ex)
+            {
+                _error = ex;
+            }
+        }
+
+        [Then("the traversal will raise an error")]
+        public void TraversalWillRaiseError()
+        {
+            Assert.NotNull(_error);
+
+            // consume the error now that it has been asserted
+            _error = null;
+        }
+
+        [Then("the traversal will raise an error with message (\\w+) text of \"(.*)\"")]
+        public void TraversalWillRaiseErrorWithMessage(string comparison, string expectedMessage)
+        {
+            Assert.NotNull(_error);
+
+            switch (comparison) {
+                case "containing":
+                    Assert.Contains(expectedMessage, _error.Message);
+                    break;
+                case "starting":
+                    Assert.StartsWith(expectedMessage, _error.Message);
+                    break;
+                case "ending":
+                    Assert.EndsWith(expectedMessage, _error.Message);
+                    break;
+                default:
+                    throw new NotSupportedException(
+                            "Unknown comparison of " + comparison + " - must be one of: containing, starting or ending");
+            }
+
+            // consume the error now that it has been asserted
+            _error = null;
         }
 
         [Then("the result should be (\\w+)")]
-        public void AssertResult(string characterizedAs, DataTable table = null)
+        public void AssertResult(string characterizedAs, DataTable? table = null)
         {
+            AssertThatNoErrorWasThrown();
+
             var ordered = characterizedAs == "ordered";
             switch (characterizedAs)
             {
                 case "empty":
-                    Assert.Empty(_result);
+                    Assert.Empty(_result!);
                     return;
                 case "ordered":
                 case "unordered":
@@ -195,16 +260,16 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                     Assert.NotNull(table);
                     var rows = table.Rows.ToArray();
                     Assert.Equal("result", rows[0].Cells.First().Value);
-                    var expected = rows.Skip(1).Select(x => ParseValue(x.Cells.First().Value, _graphName));
+                    var expected = rows.Skip(1).Select(x => ParseValue(x.Cells.First().Value, _graphName!));
 
                     if (ordered)
                     {
-                        Assert.Equal(expected, _result);
+                        Assert.Equal(expected, _result!);
                     }
                     else
                     {
                         var expectedArray = expected.ToArray();
-                        foreach (var resultItem in _result)
+                        foreach (var resultItem in _result!)
                         {
                             if (resultItem is Dictionary<object, object> resultItemDict)
                             {
@@ -219,7 +284,7 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                                 Assert.True(expectedArrayContainsResultDictionary);
                             }
                             else if (resultItem is double resultItemDouble &&
-                                     expectedArray.Select(e => e.GetType()).Any(t => t == typeof(decimal)))
+                                     expectedArray.Select(e => e!.GetType()).Any(t => t == typeof(decimal)))
                             {
                                 // Java seems to use BigDecimal by default sometimes where .NET uses double, but we only
                                 // care for the value not its type here. So we just convert these to decimal (equivalent
@@ -245,19 +310,23 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
         [Then("the result should have a count of (\\d+)")]
         public void AssertCount(int count)
         {
-            Assert.Equal(count, _result.Length);
+            AssertThatNoErrorWasThrown();
+
+            Assert.Equal(count, _result!.Length);
         }
 
         [Then("the graph should return (\\d+) for count of (.+)")]
         public void AssertTraversalCount(int expectedCount, string traversalText)
         {
+            AssertThatNoErrorWasThrown();
+
             if (traversalText.StartsWith("\""))
             {
                 traversalText = traversalText.Substring(1, traversalText.Length - 2);
             }
             
             var traversal =
-                Gremlin.UseTraversal(ScenarioData.CurrentScenario.Name, _g, _parameters);
+                Gremlin.UseTraversal(ScenarioData.CurrentScenario!.Name, _g, _parameters);
             
             var count = 0;
             while (traversal.MoveNext())
@@ -273,10 +342,15 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             
         }
 
+        private void AssertThatNoErrorWasThrown()
+        {
+            if (_error != null) throw _error;
+        }
+
         private static object ToMap(string stringMap, string graphName)
         {
             var jsonMap = JsonSerializer.Deserialize<JsonElement>(stringMap, JsonDeserializingOptions);
-            return ParseMapValue(jsonMap, graphName);
+            return ParseMapValue(jsonMap, graphName)!;
         }
 
         private static object ToLambda(string stringLambda, string graphName)
@@ -300,13 +374,13 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                 stringNumber.Substring(0, stringNumber.Length - 1));
         }
 
-        private static object ParseMapValue(JsonElement value, string graphName)
+        private static object? ParseMapValue(JsonElement value, string graphName)
         {
             switch (value.ValueKind)
             {
                 case JsonValueKind.Object:
                 {
-                    return value.EnumerateObject().ToDictionary(property => ParseValue(property.Name, graphName),
+                    return value.EnumerateObject().ToDictionary(property => ParseValue(property.Name, graphName)!,
                         property => ParseMapValue(property.Value, graphName));
                 }
                 case JsonValueKind.Array:
@@ -328,7 +402,7 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                     throw new ArgumentOutOfRangeException(nameof(value), value, "Not a supported number type");
                 }
                 case JsonValueKind.String:
-                    return ParseValue(value.GetString(), graphName);
+                    return ParseValue(value.GetString()!, graphName);
                 case JsonValueKind.True:
                     return true;
                 case JsonValueKind.False:
@@ -341,23 +415,30 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             }
         }
 
-        private static ISet<object> ToSet(string stringSet, string graphName)
+        private static ISet<object?> ToSet(string stringSet, string graphName)
         {
-            return new HashSet<object>(ToList(stringSet, graphName));
+            return new HashSet<object?>(ToList(stringSet, graphName));
         }
 
-        private static IList<object> ToList(string stringList, string graphName)
+        private static IList<object?> ToList(string stringList, string graphName)
         {
             if (stringList == "")
             {
-                return new List<object>(0);
+                return new List<object?>(0);
             }
             return stringList.Split(',').Select(x => ParseValue(x, graphName)).ToList();
         }
 
         private static Vertex ToVertex(string name, string graphName)
         {
-            return ScenarioData.GetByGraphName(graphName).Vertices[name];
+            if (ScenarioData.GetByGraphName(graphName).Vertices.ContainsKey(name))
+            {
+                return ScenarioData.GetByGraphName(graphName).Vertices[name];
+            }
+            else
+            {
+                return new Vertex(name);
+            }
         }
 
         private static Edge ToEdge(string name, string graphName)
@@ -365,15 +446,21 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
             return ScenarioData.GetByGraphName(graphName).Edges[name];
         }
 
-        private static Path ToPath(string value, string graphName)
+        private static VertexProperty ToVertexProperty(string triplet, string graphName)
         {
-            return new Path(new List<ISet<string>>(0), value.Split(',').Select(x => ParseValue(x, graphName)).ToList());
+            return ScenarioData.GetByGraphName(graphName).VertexProperties[triplet];
         }
 
-        private static object ParseValue(string stringValue, string graphName)
+        private static Path ToPath(string value, string graphName)
         {
-            Func<string, string, object> parser = null;
-            string extractedValue = null;
+            return new Path(new List<ISet<string>>(0),
+                value.Split(',').Select(x => ParseValue(x, graphName)).ToList());
+        }
+
+        private static object? ParseValue(string stringValue, string graphName)
+        {
+            Func<string, string, object?>? parser = null;
+            string? extractedValue = null;
             foreach (var kv in Parsers)
             {
                 var match = kv.Key.Match(stringValue);
@@ -388,7 +475,7 @@ namespace Gremlin.Net.IntegrationTest.Gherkin
                     break;
                 }
             }
-            return parser != null ? parser(extractedValue, graphName) : stringValue;
+            return parser != null ? parser(extractedValue!, graphName) : stringValue;
         }
     }
 }

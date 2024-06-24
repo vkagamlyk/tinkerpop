@@ -78,6 +78,7 @@ const (
 	textPType             dataType = 0x28
 	traversalStrategyType dataType = 0x29
 	bulkSetType           dataType = 0x2a
+	mergeType             dataType = 0x2e
 	metricsType           dataType = 0x2c
 	traversalMetricsType  dataType = 0x2d
 	durationType          dataType = 0x81
@@ -228,13 +229,13 @@ func instructionWriter(instructions []instruction, buffer *bytes.Buffer, typeSer
 //		{values_length} is an Int describing the amount values.
 //		{value_i} is a fully qualified typed value composed of {type_code}{type_info}{value_flag}{value} describing the step argument.
 func bytecodeWriter(value interface{}, buffer *bytes.Buffer, typeSerializer *graphBinaryTypeSerializer) ([]byte, error) {
-	var bc bytecode
+	var bc Bytecode
 	switch typedVal := value.(type) {
 	case *GraphTraversal:
-		bc = *typedVal.bytecode
-	case bytecode:
+		bc = *typedVal.Bytecode
+	case Bytecode:
 		bc = typedVal
-	case *bytecode:
+	case *Bytecode:
 		bc = *typedVal
 	default:
 		return nil, newError(err0402BytecodeWriterError)
@@ -282,6 +283,10 @@ func intWriter(value interface{}, buffer *bytes.Buffer, _ *graphBinaryTypeSerial
 }
 
 func shortWriter(value interface{}, buffer *bytes.Buffer, _ *graphBinaryTypeSerializer) ([]byte, error) {
+	switch v := value.(type) {
+	case int8:
+		value = int16(v)
+	}
 	err := binary.Write(buffer, binary.BigEndian, value.(int16))
 	return buffer.Bytes(), err
 }
@@ -315,10 +320,17 @@ func getSignedBytesFromBigInt(n *big.Int) []byte {
 // Format: {length}{value_0}...{value_n}
 func bigIntWriter(value interface{}, buffer *bytes.Buffer, _ *graphBinaryTypeSerializer) ([]byte, error) {
 	var v big.Int
-	if reflect.TypeOf(value).Kind() == reflect.Ptr {
-		v = *(value.(*big.Int))
-	} else {
-		v = value.(big.Int)
+	switch val := value.(type) {
+	case uint:
+		v = *(new(big.Int).SetUint64(uint64(val)))
+	case uint64:
+		v = *(new(big.Int).SetUint64(val))
+	default:
+		if reflect.TypeOf(value).Kind() == reflect.Ptr {
+			v = *(value.(*big.Int))
+		} else {
+			v = value.(big.Int)
+		}
 	}
 	signedBytes := getSignedBytesFromBigInt(&v)
 	err := binary.Write(buffer, binary.BigEndian, int32(len(signedBytes)))
@@ -632,17 +644,17 @@ func bindingWriter(value interface{}, buffer *bytes.Buffer, typeSerializer *grap
 
 func (serializer *graphBinaryTypeSerializer) getType(val interface{}) (dataType, error) {
 	switch val.(type) {
-	case *bytecode, bytecode, *GraphTraversal:
+	case *Bytecode, Bytecode, *GraphTraversal:
 		return bytecodeType, nil
 	case string:
 		return stringType, nil
-	case *big.Int:
+	case uint, uint64, *big.Int:
 		return bigIntegerType, nil
 	case int64, int, uint32:
 		return longType, nil
 	case int32, uint16:
 		return intType, nil
-	case int16:
+	case int8, int16: // GraphBinary doesn't have a type for signed 8-bit integer, serializing int8 as Short instead.
 		return shortType, nil
 	case uint8:
 		return byteType, nil
@@ -694,6 +706,8 @@ func (serializer *graphBinaryTypeSerializer) getType(val interface{}) (dataType,
 		return barrierType, nil
 	case scope:
 		return scopeType, nil
+	case merge:
+		return mergeType, nil
 	case p, Predicate:
 		return pType, nil
 	case textP, TextPredicate:

@@ -79,7 +79,7 @@ public abstract class OrderTest extends AbstractGremlinProcessTest {
 
     public abstract Traversal<Vertex, Map<Integer, Integer>> get_g_VX1X_hasXlabel_personX_mapXmapXint_ageXX_orderXlocalX_byXvalues_descX_byXkeys_ascX(final Object v1Id);
 
-    public abstract Traversal<Vertex, Vertex> get_g_V_order_byXoutE_count_descX();
+    public abstract Traversal<Vertex, Vertex> get_g_V_order_byXoutE_count_descX_byXnameX();
 
     public abstract Traversal<Vertex, Map<String, List<Vertex>>> get_g_V_group_byXlabelX_byXname_order_byXdescX_foldX();
 
@@ -223,8 +223,8 @@ public abstract class OrderTest extends AbstractGremlinProcessTest {
 
     @Test
     @LoadGraphWith(MODERN)
-    public void g_V_order_byXoutE_count_descX() {
-        Arrays.asList(get_g_V_order_byXoutE_count_descX()).forEach(traversal -> {
+    public void g_V_order_byXoutE_count_descX_byXnameX() {
+        Arrays.asList(get_g_V_order_byXoutE_count_descX_byXnameX()).forEach(traversal -> {
             printTraversalForm(traversal);
             final List<Vertex> vertices = traversal.toList();
             assertEquals(vertices.size(), 6);
@@ -311,7 +311,7 @@ public abstract class OrderTest extends AbstractGremlinProcessTest {
     public void g_V_orXhasLabelXpersonX_hasXsoftware_name_lopXX_order_byXageX() {
         final Traversal<Vertex, Vertex> traversal = get_g_V_orXhasLabelXpersonX_hasXsoftware_name_lopXX_order_byXageX();
         printTraversalForm(traversal);
-        checkResults(Arrays.asList(convertToVertex(graph, "lop"), convertToVertex(graph, "vadas"), convertToVertex(graph, "marko"), convertToVertex(graph, "josh"), convertToVertex(graph, "peter")), traversal);
+        checkResults(Arrays.asList(convertToVertex(graph, "vadas"), convertToVertex(graph, "marko"), convertToVertex(graph, "josh"), convertToVertex(graph, "peter")), traversal);
     }
 
     @Test
@@ -557,8 +557,8 @@ public abstract class OrderTest extends AbstractGremlinProcessTest {
         }
 
         @Override
-        public Traversal<Vertex, Vertex> get_g_V_order_byXoutE_count_descX() {
-            return g.V().order().by(outE().count(), desc);
+        public Traversal<Vertex, Vertex> get_g_V_order_byXoutE_count_descX_byXnameX() {
+            return g.V().order().by(outE().count(), desc).by("name");
         }
 
         @Override

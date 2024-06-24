@@ -19,6 +19,7 @@
 import logging
 import sys
 import copy
+import warnings
 from threading import Lock
 from .traversal import Traversal
 from .traversal import TraversalStrategies
@@ -28,12 +29,14 @@ from ..driver.remote_connection import RemoteStrategy
 from .. import statics
 from ..statics import long
 
+log = logging.getLogger("gremlinpython")
+
 __author__ = 'Stephen Mallette (http://stephen.genoprime.com), Lyndon Bauto (lyndonb@bitquilltech.com)'
 
 
 class GraphTraversalSource(object):
     def __init__(self, graph, traversal_strategies, bytecode=None):
-        logging.info("Creating GraphTraversalSource.")
+        log.info("Creating GraphTraversalSource.")
         self.graph = graph
         self.traversal_strategies = traversal_strategies
         if bytecode is None:
@@ -52,31 +55,73 @@ class GraphTraversalSource(object):
         return self.graph_traversal(self.graph, self.traversal_strategies, Bytecode(self.bytecode))
 
     def withBulk(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withBulk will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.with_bulk.",
+            DeprecationWarning)
+        return self.with_bulk(*args)
+
+    def with_bulk(self, *args):
         source = self.get_graph_traversal_source()
         source.bytecode.add_source("withBulk", *args)
         return source
 
     def withPath(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withPath will be replaced by "
+            "gremlin_python.process.Traversal.with_path.",
+            DeprecationWarning)
+        return self.with_path(*args)
+
+    def with_path(self, *args):
         source = self.get_graph_traversal_source()
         source.bytecode.add_source("withPath", *args)
         return source
 
     def withSack(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withSack will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.with_sack.",
+            DeprecationWarning)
+        return self.with_sack(*args)
+
+    def with_sack(self, *args):
         source = self.get_graph_traversal_source()
         source.bytecode.add_source("withSack", *args)
         return source
 
     def withSideEffect(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.with_side_effect will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.with_sack.",
+            DeprecationWarning)
+        return self.with_side_effect(*args)
+
+    def with_side_effect(self, *args):
         source = self.get_graph_traversal_source()
         source.bytecode.add_source("withSideEffect", *args)
         return source
 
     def withStrategies(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withStrategies will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.with_strategies.",
+            DeprecationWarning)
+        return self.with_strategies(*args)
+
+    def with_strategies(self, *args):
         source = self.get_graph_traversal_source()
         source.bytecode.add_source("withStrategies", *args)
         return source
 
     def withoutStrategies(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withoutStrategies will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.without_strategies.",
+            DeprecationWarning)
+        return self.without_strategies(*args)
+
+    def without_strategies(self, *args):
         source = self.get_graph_traversal_source()
         source.bytecode.add_source("withoutStrategies", *args)
         return source
@@ -96,6 +141,13 @@ class GraphTraversalSource(object):
         return source
 
     def withRemote(self, remote_connection):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withRemote will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.with_remote.",
+            DeprecationWarning)
+        return self.with_remote(remote_connection)
+
+    def with_remote(self, remote_connection):
         source = self.get_graph_traversal_source()
         source.traversal_strategies.add_strategies([RemoteStrategy(remote_connection)])
         self.remote_connection = remote_connection
@@ -121,7 +173,15 @@ class GraphTraversalSource(object):
 
     def withComputer(self, graph_computer=None, workers=None, result=None, persist=None, vertices=None,
                      edges=None, configuration=None):
-        return self.withStrategies(
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.withComputer will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.with_computer.",
+            DeprecationWarning)
+        return self.with_computer(graph_computer, workers, result, persist, vertices, edges, configuration)
+
+    def with_computer(self, graph_computer=None, workers=None, result=None, persist=None, vertices=None,
+                  edges=None, configuration=None):
+        return self.with_strategies(
             VertexProgramStrategy(graph_computer, workers, result, persist, vertices, edges, configuration))
 
     def E(self, *args):
@@ -135,13 +195,37 @@ class GraphTraversalSource(object):
         return traversal
 
     def addE(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.addE will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.add_e.",
+            DeprecationWarning)
+        return self.add_e(*args)
+
+    def add_e(self, *args):
         traversal = self.get_graph_traversal()
         traversal.bytecode.add_step("addE", *args)
         return traversal
 
     def addV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.addV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.add_v.",
+            DeprecationWarning)
+        return self.add_v(*args)
+
+    def add_v(self, *args):
         traversal = self.get_graph_traversal()
         traversal.bytecode.add_step("addV", *args)
+        return traversal
+
+    def merge_v(self, *args):
+        traversal = self.get_graph_traversal()
+        traversal.bytecode.add_step("mergeV", *args)
+        return traversal
+
+    def merge_e(self, *args):
+        traversal = self.get_graph_traversal()
+        traversal.bytecode.add_step("mergeE", *args)
         return traversal
 
     def inject(self, *args):
@@ -154,6 +238,11 @@ class GraphTraversalSource(object):
         traversal.bytecode.add_step("io", *args)
         return traversal
 
+    def call(self, *args):
+        traversal = self.get_graph_traversal()
+        traversal.bytecode.add_step("call", *args)
+        return traversal
+
 
 class GraphTraversal(Traversal):
     def __init__(self, graph, traversal_strategies, bytecode):
@@ -161,14 +250,14 @@ class GraphTraversal(Traversal):
 
     def __getitem__(self, index):
         if isinstance(index, int):
-            return self.range(long(index), long(index + 1))
+            return self.range_(long(index), long(index + 1))
         elif isinstance(index, slice):
             low = long(0) if index.start is None else long(index.start)
             high = long(sys.maxsize) if index.stop is None else long(index.stop)
             if low == long(0):
                 return self.limit(high)
             else:
-                return self.range(low, high)
+                return self.range_(low, high)
         else:
             raise TypeError("Index must be int or slice")
 
@@ -185,11 +274,29 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("V", *args)
         return self
 
+    def E(self, *args):
+        self.bytecode.add_step("E", *args)
+        return self
+
     def addE(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversal.addE will be replaced by "
+            "gremlin_python.process.GraphTraversal.add_e.",
+            DeprecationWarning)
+        return self.add_e(*args)
+
+    def add_e(self, *args):
         self.bytecode.add_step("addE", *args)
         return self
 
     def addV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.addV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.add_v.",
+            DeprecationWarning)
+        return self.add_v(*args)
+
+    def add_v(self, *args):
         self.bytecode.add_step("addV", *args)
         return self
 
@@ -214,10 +321,24 @@ class GraphTraversal(Traversal):
         return self
 
     def bothE(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.bothE will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.both_e.",
+            DeprecationWarning)
+        return self.both_e(*args)
+
+    def both_e(self, *args):
         self.bytecode.add_step("bothE", *args)
         return self
 
     def bothV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.bothV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.both_v.",
+            DeprecationWarning)
+        return self.both_v(*args)
+
+    def both_v(self, *args):
         self.bytecode.add_step("bothV", *args)
         return self
 
@@ -227,6 +348,10 @@ class GraphTraversal(Traversal):
 
     def by(self, *args):
         self.bytecode.add_step("by", *args)
+        return self
+
+    def call(self, *args):
+        self.bytecode.add_step("call", *args)
         return self
 
     def cap(self, *args):
@@ -246,6 +371,13 @@ class GraphTraversal(Traversal):
         return self
 
     def connectedComponent(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.connectedComponent will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.connected_component.",
+            DeprecationWarning)
+        return self.connected_component(*args)
+
+    def connected_component(self, *args):
         self.bytecode.add_step("connectedComponent", *args)
         return self
 
@@ -258,6 +390,13 @@ class GraphTraversal(Traversal):
         return self
 
     def cyclicPath(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.cyclicPath will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.cyclic_path.",
+            DeprecationWarning)
+        return self.cyclic_path(*args)
+
+    def cyclic_path(self, *args):
         self.bytecode.add_step("cyclicPath", *args)
         return self
 
@@ -269,7 +408,18 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("drop", *args)
         return self
 
+    def element(self, *args):
+        self.bytecode.add_step("element", *args)
+        return self
+
     def elementMap(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.elementMap will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.element_map.",
+            DeprecationWarning)
+        return self.element_map(*args)
+
+    def element_map(self, *args):
         self.bytecode.add_step("elementMap", *args)
         return self
 
@@ -277,11 +427,22 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("emit", *args)
         return self
 
+    def fail(self, *args):
+        self.bytecode.add_step("fail", *args)
+        return self
+
     def filter_(self, *args):
         self.bytecode.add_step("filter", *args)
         return self
 
     def flatMap(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.flatMap will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.flat_map.",
+            DeprecationWarning)
+        return self.flat_map(*args)
+
+    def flat_map(self, *args):
         self.bytecode.add_step("flatMap", *args)
         return self
 
@@ -298,6 +459,13 @@ class GraphTraversal(Traversal):
         return self
 
     def groupCount(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.groupCount will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.group_count.",
+            DeprecationWarning)
+        return self.group_count(*args)
+
+    def group_count(self, *args):
         self.bytecode.add_step("groupCount", *args)
         return self
 
@@ -306,22 +474,57 @@ class GraphTraversal(Traversal):
         return self
 
     def hasId(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.hasId will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.has_id.",
+            DeprecationWarning)
+        return self.has_id(*args)
+
+    def has_id(self, *args):
         self.bytecode.add_step("hasId", *args)
         return self
 
     def hasKey(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.hasKey will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.has_key.",
+            DeprecationWarning)
+        return self.has_key_(*args)
+
+    def has_key_(self, *args):
         self.bytecode.add_step("hasKey", *args)
         return self
 
     def hasLabel(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.hasLabel will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.has_label.",
+            DeprecationWarning)
+        return self.has_label(*args)
+
+    def has_label(self, *args):
         self.bytecode.add_step("hasLabel", *args)
         return self
 
     def hasNot(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.hasNot will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.has_not.",
+            DeprecationWarning)
+        return self.has_not(*args)
+
+    def has_not(self, *args):
         self.bytecode.add_step("hasNot", *args)
         return self
 
     def hasValue(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.hasValue will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.has_value.",
+            DeprecationWarning)
+        return self.has_value(*args)
+
+    def has_value(self, *args):
         self.bytecode.add_step("hasValue", *args)
         return self
 
@@ -334,10 +537,24 @@ class GraphTraversal(Traversal):
         return self
 
     def inE(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.inE will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.in_e.",
+            DeprecationWarning)
+        return self.in_e(*args)
+
+    def in_e(self, *args):
         self.bytecode.add_step("inE", *args)
         return self
 
     def inV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.inV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.in_v.",
+            DeprecationWarning)
+        return self.in_v(*args)
+
+    def in_v(self, *args):
         self.bytecode.add_step("inV", *args)
         return self
 
@@ -397,6 +614,14 @@ class GraphTraversal(Traversal):
         self.bytecode.add_step("mean", *args)
         return self
 
+    def merge_e(self, *args):
+        self.bytecode.add_step("mergeE", *args)
+        return self
+
+    def merge_v(self, *args):
+        self.bytecode.add_step("mergeV", *args)
+        return self
+
     def min_(self, *args):
         self.bytecode.add_step("min", *args)
         return self
@@ -426,6 +651,13 @@ class GraphTraversal(Traversal):
         return self
 
     def otherV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.otherV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.other_v.",
+            DeprecationWarning)
+        return self.other_v(*args)
+
+    def other_v(self, *args):
         self.bytecode.add_step("otherV", *args)
         return self
 
@@ -434,14 +666,35 @@ class GraphTraversal(Traversal):
         return self
 
     def outE(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.outE will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.out_e.",
+            DeprecationWarning)
+        return self.out_e(*args)
+
+    def out_e(self, *args):
         self.bytecode.add_step("outE", *args)
         return self
 
     def outV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.outV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.out_v.",
+            DeprecationWarning)
+        return self.out_v(*args)
+
+    def out_v(self, *args):
         self.bytecode.add_step("outV", *args)
         return self
 
     def pageRank(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.pageRank will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.page_rank.",
+            DeprecationWarning)
+        return self.page_rank(*args)
+
+    def page_rank(self, *args):
         self.bytecode.add_step("pageRank", *args)
         return self
 
@@ -450,6 +703,13 @@ class GraphTraversal(Traversal):
         return self
 
     def peerPressure(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.peerPressure will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.peer_pressure.",
+            DeprecationWarning)
+        return self.peer_pressure(*args)
+
+    def peer_pressure(self, *args):
         self.bytecode.add_step("peerPressure", *args)
         return self
 
@@ -474,6 +734,13 @@ class GraphTraversal(Traversal):
         return self
 
     def propertyMap(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.propertyMap will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.property_map.",
+            DeprecationWarning)
+        return self.property_map(*args)
+
+    def property_map(self, *args):
         self.bytecode.add_step("propertyMap", *args)
         return self
 
@@ -502,14 +769,35 @@ class GraphTraversal(Traversal):
         return self
 
     def shortestPath(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.shortestPath will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.shortest_path.",
+            DeprecationWarning)
+        return self.shortest_path(*args)
+
+    def shortest_path(self, *args):
         self.bytecode.add_step("shortestPath", *args)
         return self
 
     def sideEffect(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.sideEffect will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.side_effect.",
+            DeprecationWarning)
+        return self.side_effect(*args)
+
+    def side_effect(self, *args):
         self.bytecode.add_step("sideEffect", *args)
         return self
 
     def simplePath(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.simplePath will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.simple_path.",
+            DeprecationWarning)
+        return self.simple_path(*args)
+
+    def simple_path(self, *args):
         self.bytecode.add_step("simplePath", *args)
         return self
 
@@ -534,6 +822,13 @@ class GraphTraversal(Traversal):
         return self
 
     def timeLimit(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.timeLimit will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.time_limit.",
+            DeprecationWarning)
+        return self.time_limit(*args)
+
+    def time_limit(self, *args):
         self.bytecode.add_step("timeLimit", *args)
         return self
 
@@ -546,10 +841,24 @@ class GraphTraversal(Traversal):
         return self
 
     def toE(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.toE will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.to_e.",
+            DeprecationWarning)
+        return self.to_e(*args)
+
+    def to_e(self, *args):
         self.bytecode.add_step("toE", *args)
         return self
 
     def toV(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.toV will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.to_v.",
+            DeprecationWarning)
+        return self.to_v(*args)
+
+    def to_v(self, *args):
         self.bytecode.add_step("toV", *args)
         return self
 
@@ -574,6 +883,13 @@ class GraphTraversal(Traversal):
         return self
 
     def valueMap(self, *args):
+        warnings.warn(
+            "gremlin_python.process.GraphTraversalSource.valueMap will be replaced by "
+            "gremlin_python.process.GraphTraversalSource.value_map.",
+            DeprecationWarning)
+        return self.value_map(*args)
+
+    def value_map(self, *args):
         self.bytecode.add_step("valueMap", *args)
         return self
 
@@ -591,32 +907,6 @@ class GraphTraversal(Traversal):
 
     def write(self, *args):
         self.bytecode.add_step("write", *args)
-        return self
-
-    # Deprecated - prefer the underscore suffixed versions e.g filter_()
-
-    def filter(self, *args):
-        self.bytecode.add_step("filter", *args)
-        return self
-
-    def id(self, *args):
-        self.bytecode.add_step("id", *args)
-        return self
-
-    def max(self, *args):
-        self.bytecode.add_step("max", *args)
-        return self
-
-    def min(self, *args):
-        self.bytecode.add_step("min", *args)
-        return self
-
-    def range(self, *args):
-        self.bytecode.add_step("range", *args)
-        return self
-
-    def sum(self, *args):
-        self.bytecode.add_step("sum", *args)
         return self
 
 
@@ -641,16 +931,36 @@ class __(object, metaclass=MagicType):
         return __.inject(*args)
 
     @classmethod
+    def E(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).E(*args)
+
+    @classmethod
     def V(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).V(*args)
 
     @classmethod
     def addE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).addE(*args)
+        warnings.warn(
+            "gremlin_python.process.__.addE will be replaced by "
+            "gremlin_python.process.__.add_e.",
+            DeprecationWarning)
+        return cls.add_e(*args)
+
+    @classmethod
+    def add_e(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).add_e(*args)
 
     @classmethod
     def addV(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).addV(*args)
+        warnings.warn(
+            "gremlin_python.process.__.addV will be replaced by "
+            "gremlin_python.process.__.add_v.",
+            DeprecationWarning)
+        return cls.add_v(*args)
+
+    @classmethod
+    def add_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).add_v(*args)
 
     @classmethod
     def aggregate(cls, *args):
@@ -674,15 +984,35 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def bothE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).bothE(*args)
+        warnings.warn(
+            "gremlin_python.process.__.bothE will be replaced by "
+            "gremlin_python.process.__.both_e.",
+            DeprecationWarning)
+        return cls.both_e(*args)
+
+    @classmethod
+    def both_e(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).both_e(*args)
 
     @classmethod
     def bothV(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).bothV(*args)
+        warnings.warn(
+            "gremlin_python.process.__.bothV will be replaced by "
+            "gremlin_python.process.__.both_v.",
+            DeprecationWarning)
+        return cls.both_v(*args)
+
+    @classmethod
+    def both_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).both_v(*args)
 
     @classmethod
     def branch(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).branch(*args)
+
+    @classmethod
+    def call(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).call(*args)
 
     @classmethod
     def cap(cls, *args):
@@ -710,7 +1040,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def cyclicPath(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).cyclicPath(*args)
+        warnings.warn(
+            "gremlin_python.process.__.cyclicPath will be replaced by "
+            "gremlin_python.process.__.cyclic_path.",
+            DeprecationWarning)
+        return cls.cyclic_path(*args)
+
+    @classmethod
+    def cyclic_path(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).cyclic_path(*args)
 
     @classmethod
     def dedup(cls, *args):
@@ -721,12 +1059,28 @@ class __(object, metaclass=MagicType):
         return cls.graph_traversal(None, None, Bytecode()).drop(*args)
 
     @classmethod
+    def element(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).element(*args)
+
+    @classmethod
     def elementMap(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).elementMap(*args)
+        warnings.warn(
+            "gremlin_python.process.__.elementMap will be replaced by "
+            "gremlin_python.process.__.element_map.",
+            DeprecationWarning)
+        return cls.element_map(*args)
+
+    @classmethod
+    def element_map(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).element_map(*args)
 
     @classmethod
     def emit(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).emit(*args)
+
+    @classmethod
+    def fail(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).fail(*args)
 
     @classmethod
     def filter_(cls, *args):
@@ -734,7 +1088,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def flatMap(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).flatMap(*args)
+        warnings.warn(
+            "gremlin_python.process.__.flatMap will be replaced by "
+            "gremlin_python.process.__.flat_map.",
+            DeprecationWarning)
+        return cls.flat_map(*args)
+
+    @classmethod
+    def flat_map(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).flat_map(*args)
 
     @classmethod
     def fold(cls, *args):
@@ -746,7 +1108,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def groupCount(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).groupCount(*args)
+        warnings.warn(
+            "gremlin_python.process.__.groupCount will be replaced by "
+            "gremlin_python.process.__.group_count.",
+            DeprecationWarning)
+        return cls.group_count(*args)
+
+    @classmethod
+    def group_count(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).group_count(*args)
 
     @classmethod
     def has(cls, *args):
@@ -754,23 +1124,63 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def hasId(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).hasId(*args)
+        warnings.warn(
+            "gremlin_python.process.__.hasId will be replaced by "
+            "gremlin_python.process.__.has_id.",
+            DeprecationWarning)
+        return cls.has_id(*args)
+
+    @classmethod
+    def has_id(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).has_id(*args)
 
     @classmethod
     def hasKey(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).hasKey(*args)
+        warnings.warn(
+            "gremlin_python.process.__.hasKey will be replaced by "
+            "gremlin_python.process.__.has_key.",
+            DeprecationWarning)
+        return cls.has_key_(*args)
+
+    @classmethod
+    def has_key_(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).has_key_(*args)
 
     @classmethod
     def hasLabel(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).hasLabel(*args)
+        warnings.warn(
+            "gremlin_python.process.__.hasLabel will be replaced by "
+            "gremlin_python.process.__.has_label.",
+            DeprecationWarning)
+        return cls.has_label(*args)
+
+    @classmethod
+    def has_label(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).has_label(*args)
 
     @classmethod
     def hasNot(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).hasNot(*args)
+        warnings.warn(
+            "gremlin_python.process.__.hasNot will be replaced by "
+            "gremlin_python.process.__.has_not.",
+            DeprecationWarning)
+        return cls.has_not(*args)
+
+    @classmethod
+    def has_not(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).has_not(*args)
 
     @classmethod
     def hasValue(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).hasValue(*args)
+        warnings.warn(
+            "gremlin_python.process.__.hasValue will be replaced by "
+            "gremlin_python.process.__.has_value.",
+            DeprecationWarning)
+        return cls.has_value(*args)
+
+    @classmethod
+    def has_value(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).has_value(*args)
 
     @classmethod
     def id_(cls, *args):
@@ -782,11 +1192,27 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def inE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).inE(*args)
+        warnings.warn(
+            "gremlin_python.process.__.inE will be replaced by "
+            "gremlin_python.process.__.in_e.",
+            DeprecationWarning)
+        return cls.in_e(*args)
+
+    @classmethod
+    def in_e(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).in_e(*args)
 
     @classmethod
     def inV(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).inV(*args)
+        warnings.warn(
+            "gremlin_python.process.__.inV will be replaced by "
+            "gremlin_python.process.__.in_v.",
+            DeprecationWarning)
+        return cls.in_v(*args)
+
+    @classmethod
+    def in_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).in_v(*args)
 
     @classmethod
     def in_(cls, *args):
@@ -845,6 +1271,14 @@ class __(object, metaclass=MagicType):
         return cls.graph_traversal(None, None, Bytecode()).mean(*args)
 
     @classmethod
+    def merge_e(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).merge_e(*args)
+
+    @classmethod
+    def merge_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).merge_v(*args)
+
+    @classmethod
     def min_(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).min_(*args)
 
@@ -866,7 +1300,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def otherV(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).otherV(*args)
+        warnings.warn(
+            "gremlin_python.process.__.otherV will be replaced by "
+            "gremlin_python.process.__.other_v.",
+            DeprecationWarning)
+        return cls.other_v(*args)
+
+    @classmethod
+    def other_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).other_v(*args)
 
     @classmethod
     def out(cls, *args):
@@ -874,11 +1316,27 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def outE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).outE(*args)
+        warnings.warn(
+            "gremlin_python.process.__.outE will be replaced by "
+            "gremlin_python.process.__.out_e.",
+            DeprecationWarning)
+        return cls.out_e(*args)
+
+    @classmethod
+    def out_e(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).out_e(*args)
 
     @classmethod
     def outV(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).outV(*args)
+        warnings.warn(
+            "gremlin_python.process.__.outV will be replaced by "
+            "gremlin_python.process.__.out_v.",
+            DeprecationWarning)
+        return cls.out_v(*args)
+
+    @classmethod
+    def out_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).out_v(*args)
 
     @classmethod
     def path(cls, *args):
@@ -898,7 +1356,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def propertyMap(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).propertyMap(*args)
+        warnings.warn(
+            "gremlin_python.process.__.propertyMap will be replaced by "
+            "gremlin_python.process.__.property_map.",
+            DeprecationWarning)
+        return cls.property_map(*args)
+
+    @classmethod
+    def property_map(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).property_map(*args)
 
     @classmethod
     def range_(cls, *args):
@@ -922,11 +1388,27 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def sideEffect(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).sideEffect(*args)
+        warnings.warn(
+            "gremlin_python.process.__.sideEffect will be replaced by "
+            "gremlin_python.process.__.side_effect.",
+            DeprecationWarning)
+        return cls.side_effect(*args)
+
+    @classmethod
+    def side_effect(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).side_effect(*args)
 
     @classmethod
     def simplePath(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).simplePath(*args)
+        warnings.warn(
+            "gremlin_python.process.__.simplePath will be replaced by "
+            "gremlin_python.process.__.simple_path.",
+            DeprecationWarning)
+        return cls.simple_path(*args)
+
+    @classmethod
+    def simple_path(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).simple_path(*args)
 
     @classmethod
     def skip(cls, *args):
@@ -950,7 +1432,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def timeLimit(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).timeLimit(*args)
+        warnings.warn(
+            "gremlin_python.process.__.timeLimit will be replaced by "
+            "gremlin_python.process.__.time_limit.",
+            DeprecationWarning)
+        return cls.time_limit(*args)
+
+    @classmethod
+    def time_limit(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).time_limit(*args)
 
     @classmethod
     def times(cls, *args):
@@ -962,11 +1452,27 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def toE(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).toE(*args)
+        warnings.warn(
+            "gremlin_python.process.__.toE will be replaced by "
+            "gremlin_python.process.__.to_e.",
+            DeprecationWarning)
+        return cls.to_e(*args)
+
+    @classmethod
+    def to_e(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).to_e(*args)
 
     @classmethod
     def toV(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).toV(*args)
+        warnings.warn(
+            "gremlin_python.process.__.toV will be replaced by "
+            "gremlin_python.process.__.to_v.",
+            DeprecationWarning)
+        return cls.to_v(*args)
+
+    @classmethod
+    def to_v(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).to_v(*args)
 
     @classmethod
     def tree(cls, *args):
@@ -990,7 +1496,15 @@ class __(object, metaclass=MagicType):
 
     @classmethod
     def valueMap(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).valueMap(*args)
+        warnings.warn(
+            "gremlin_python.process.__.valueMap will be replaced by "
+            "gremlin_python.process.__.value_map.",
+            DeprecationWarning)
+        return cls.value_map(*args)
+
+    @classmethod
+    def value_map(cls, *args):
+        return cls.graph_traversal(None, None, Bytecode()).value_map(*args)
 
     @classmethod
     def values(cls, *args):
@@ -999,32 +1513,6 @@ class __(object, metaclass=MagicType):
     @classmethod
     def where(cls, *args):
         return cls.graph_traversal(None, None, Bytecode()).where(*args)
-
-    # Deprecated - prefer the underscore suffixed versions e.g filter_()
-
-    @classmethod
-    def filter(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).filter_(*args)
-
-    @classmethod
-    def id(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).id_(*args)
-
-    @classmethod
-    def max(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).max_(*args)
-
-    @classmethod
-    def min(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).min_(*args)
-
-    @classmethod
-    def range(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).range_(*args)
-
-    @classmethod
-    def sum(cls, *args):
-        return cls.graph_traversal(None, None, Bytecode()).sum_(*args)
 
 
 # Class to handle transactions.
@@ -1078,6 +1566,13 @@ class Transaction:
     # Return whether or not transaction is open.
     # Allow camelcase function here to keep api consistent with other languages.
     def isOpen(self):
+        warnings.warn(
+            "gremlin_python.process.Transaction.isOpen will be replaced by "
+            "gremlin_python.process.Transaction.is_open.",
+            DeprecationWarning)
+        return self.is_open()
+
+    def is_open(self):
         # if the underlying DriverRemoteConnection is closed then the Transaction can't be open
         if (self._session_based_connection and self._session_based_connection.is_closed()) or \
                 self._remote_connection.is_closed():
@@ -1095,6 +1590,10 @@ class Transaction:
         return session
 
 
+def E(*args):
+    return __.E(*args)
+
+
 def V(*args):
     return __.V(*args)
 
@@ -1103,8 +1602,16 @@ def addE(*args):
     return __.addE(*args)
 
 
+def add_e(*args):
+    return __.add_e(*args)
+
+
 def addV(*args):
     return __.addV(*args)
+
+
+def add_v(*args):
+    return __.add_v(*args)
 
 
 def aggregate(*args):
@@ -1131,12 +1638,24 @@ def bothE(*args):
     return __.bothE(*args)
 
 
+def both_e(*args):
+    return __.both_e(*args)
+
+
 def bothV(*args):
     return __.bothV(*args)
 
 
+def both_v(*args):
+    return __.both_v(*args)
+
+
 def branch(*args):
     return __.branch(*args)
+
+
+def call(*args):
+    return __.call(*args)
 
 
 def cap(*args):
@@ -1167,6 +1686,10 @@ def cyclicPath(*args):
     return __.cyclicPath(*args)
 
 
+def cyclic_path(*args):
+    return __.cyclic_path(*args)
+
+
 def dedup(*args):
     return __.dedup(*args)
 
@@ -1175,12 +1698,24 @@ def drop(*args):
     return __.drop(*args)
 
 
+def element(*args):
+    return __.element(*args)
+
+
 def elementMap(*args):
     return __.elementMap(*args)
 
 
+def element_map(*args):
+    return __.element_map(*args)
+
+
 def emit(*args):
     return __.emit(*args)
+
+
+def fail(*args):
+    return __.fail(*args)
 
 
 def filter_(*args):
@@ -1189,6 +1724,10 @@ def filter_(*args):
 
 def flatMap(*args):
     return __.flatMap(*args)
+
+
+def flat_map(*args):
+    return __.flat_map(*args)
 
 
 def fold(*args):
@@ -1203,6 +1742,10 @@ def groupCount(*args):
     return __.groupCount(*args)
 
 
+def group_count(*args):
+    return __.group_count(*args)
+
+
 def has(*args):
     return __.has(*args)
 
@@ -1211,20 +1754,40 @@ def hasId(*args):
     return __.hasId(*args)
 
 
+def has_id(*args):
+    return __.has_id(*args)
+
+
 def hasKey(*args):
     return __.hasKey(*args)
+
+
+def has_key_(*args):
+    return __.has_key_(*args)
 
 
 def hasLabel(*args):
     return __.hasLabel(*args)
 
 
+def has_label(*args):
+    return __.has_label(*args)
+
+
 def hasNot(*args):
     return __.hasNot(*args)
 
 
+def has_not(*args):
+    return __.has_not(*args)
+
+
 def hasValue(*args):
     return __.hasValue(*args)
+
+
+def has_value(*args):
+    return __.has_value(*args)
 
 
 def id_(*args):
@@ -1239,8 +1802,16 @@ def inE(*args):
     return __.inE(*args)
 
 
+def in_e(*args):
+    return __.in_e(*args)
+
+
 def inV(*args):
     return __.inV(*args)
+
+
+def in_v(*args):
+    return __.in_v(*args)
 
 
 def in_(*args):
@@ -1299,6 +1870,14 @@ def mean(*args):
     return __.mean(*args)
 
 
+def merge_e(*args):
+    return __.merge_e(*args)
+
+
+def merge_v(*args):
+    return __.merge_v(*args)
+
+
 def min_(*args):
     return __.min_(*args)
 
@@ -1323,6 +1902,10 @@ def otherV(*args):
     return __.otherV(*args)
 
 
+def other_v(*args):
+    return __.other_v(*args)
+
+
 def out(*args):
     return __.out(*args)
 
@@ -1331,8 +1914,16 @@ def outE(*args):
     return __.outE(*args)
 
 
+def out_e(*args):
+    return __.out_e(*args)
+
+
 def outV(*args):
     return __.outV(*args)
+
+
+def out_v(*args):
+    return __.out_v(*args)
 
 
 def path(*args):
@@ -1353,6 +1944,10 @@ def property(*args):
 
 def propertyMap(*args):
     return __.propertyMap(*args)
+
+
+def property_map(*args):
+    return __.property_map(*args)
 
 
 def range_(*args):
@@ -1379,8 +1974,16 @@ def sideEffect(*args):
     return __.sideEffect(*args)
 
 
+def side_effect(*args):
+    return __.side_effect(*args)
+
+
 def simplePath(*args):
     return __.simplePath(*args)
+
+
+def simple_path(*args):
+    return __.simple_path(*args)
 
 
 def skip(*args):
@@ -1407,6 +2010,10 @@ def timeLimit(*args):
     return __.timeLimit(*args)
 
 
+def time_limit(*args):
+    return __.time_limit(*args)
+
+
 def times(*args):
     return __.times(*args)
 
@@ -1419,8 +2026,16 @@ def toE(*args):
     return __.toE(*args)
 
 
+def to_e(*args):
+    return __.to_e(*args)
+
+
 def toV(*args):
     return __.toV(*args)
+
+
+def to_v(*args):
+    return __.to_v(*args)
 
 
 def tree(*args):
@@ -1447,6 +2062,10 @@ def valueMap(*args):
     return __.valueMap(*args)
 
 
+def value_map(*args):
+    return __.value_map(*args)
+
+
 def values(*args):
     return __.values(*args)
 
@@ -1455,37 +2074,15 @@ def where(*args):
     return __.where(*args)
 
 
-# Deprecated - prefer the underscore suffixed versions e.g filter_()
-
-def filter(*args):
-    return __.filter_(*args)
-
-
-def id(*args):
-    return __.id_(*args)
-
-
-def max(*args):
-    return __.max_(*args)
-
-
-def min(*args):
-    return __.min_(*args)
-
-
-def range(*args):
-    return __.range_(*args)
-
-
-def sum(*args):
-    return __.sum_(*args)
-
-
 statics.add_static('V', V)
 
 statics.add_static('addE', addE)
 
+statics.add_static('add_E', add_e)
+
 statics.add_static('addV', addV)
+
+statics.add_static('add_v', add_v)
 
 statics.add_static('aggregate', aggregate)
 
@@ -1499,9 +2096,15 @@ statics.add_static('both', both)
 
 statics.add_static('bothE', bothE)
 
+statics.add_static('both_e', both_e)
+
 statics.add_static('bothV', bothV)
 
+statics.add_static('both_v', both_v)
+
 statics.add_static('branch', branch)
+
+statics.add_static('call', call)
 
 statics.add_static('cap', cap)
 
@@ -1517,17 +2120,27 @@ statics.add_static('count', count)
 
 statics.add_static('cyclicPath', cyclicPath)
 
+statics.add_static('cyclicpath', cyclic_path)
+
 statics.add_static('dedup', dedup)
 
 statics.add_static('drop', drop)
 
+statics.add_static('element', element)
+
 statics.add_static('elementMap', elementMap)
 
+statics.add_static('element_map', element_map)
+
 statics.add_static('emit', emit)
+
+statics.add_static('fail', fail)
 
 statics.add_static('filter_', filter_)
 
 statics.add_static('flatMap', flatMap)
+
+statics.add_static('flat_map', flat_map)
 
 statics.add_static('fold', fold)
 
@@ -1535,17 +2148,29 @@ statics.add_static('group', group)
 
 statics.add_static('groupCount', groupCount)
 
+statics.add_static('group_count', group_count)
+
 statics.add_static('has', has)
 
 statics.add_static('hasId', hasId)
 
+statics.add_static('has_id', has_id)
+
 statics.add_static('hasKey', hasKey)
+
+statics.add_static('has_key', has_key_)
 
 statics.add_static('hasLabel', hasLabel)
 
+statics.add_static('has_label', has_label)
+
 statics.add_static('hasNot', hasNot)
 
+statics.add_static('has_not', has_not)
+
 statics.add_static('hasValue', hasValue)
+
+statics.add_static('has_value', has_value)
 
 statics.add_static('id_', id_)
 
@@ -1553,7 +2178,9 @@ statics.add_static('identity', identity)
 
 statics.add_static('inE', inE)
 
-statics.add_static('inV', inV)
+statics.add_static('in_e', in_e)
+
+statics.add_static('in_v', in_v)
 
 statics.add_static('in_', in_)
 
@@ -1583,6 +2210,10 @@ statics.add_static('max_', max_)
 
 statics.add_static('mean', mean)
 
+statics.add_static('merge_e', merge_e)
+
+statics.add_static('merge_v', merge_v)
+
 statics.add_static('min_', min_)
 
 statics.add_static('not_', not_)
@@ -1595,11 +2226,17 @@ statics.add_static('order', order)
 
 statics.add_static('otherV', otherV)
 
+statics.add_static('other_v', other_v)
+
 statics.add_static('out', out)
 
 statics.add_static('outE', outE)
 
+statics.add_static('out_e', out_e)
+
 statics.add_static('outV', outV)
+
+statics.add_static('out_v', out_v)
 
 statics.add_static('path', path)
 
@@ -1610,6 +2247,8 @@ statics.add_static('properties', properties)
 statics.add_static('property', property)
 
 statics.add_static('propertyMap', propertyMap)
+
+statics.add_static('property_map', property_map)
 
 statics.add_static('range_', range_)
 
@@ -1623,7 +2262,11 @@ statics.add_static('select', select)
 
 statics.add_static('sideEffect', sideEffect)
 
+statics.add_static('side_effect', side_effect)
+
 statics.add_static('simplePath', simplePath)
+
+statics.add_static('simple_path', simple_path)
 
 statics.add_static('skip', skip)
 
@@ -1637,13 +2280,19 @@ statics.add_static('tail', tail)
 
 statics.add_static('timeLimit', timeLimit)
 
+statics.add_static('time_limit', time_limit)
+
 statics.add_static('times', times)
 
 statics.add_static('to', to)
 
 statics.add_static('toE', toE)
 
+statics.add_static('to_e', to_e)
+
 statics.add_static('toV', toV)
+
+statics.add_static('to_v', to_v)
 
 statics.add_static('tree', tree)
 
@@ -1657,15 +2306,8 @@ statics.add_static('value', value)
 
 statics.add_static('valueMap', valueMap)
 
+statics.add_static('value_map', value_map)
+
 statics.add_static('values', values)
 
 statics.add_static('where', where)
-
-# Deprecated - prefer the underscore suffixed versions e.g filter_()
-
-statics.add_static('filter', filter)
-statics.add_static('id', id)
-statics.add_static('max', max)
-statics.add_static('min', min)
-statics.add_static('range', range)
-statics.add_static('sum', sum)

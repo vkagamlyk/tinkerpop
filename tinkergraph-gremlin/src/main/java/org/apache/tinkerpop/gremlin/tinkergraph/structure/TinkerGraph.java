@@ -39,9 +39,12 @@ import org.apache.tinkerpop.gremlin.tinkergraph.process.computer.TinkerGraphComp
 import org.apache.tinkerpop.gremlin.tinkergraph.process.computer.TinkerGraphComputerView;
 import org.apache.tinkerpop.gremlin.tinkergraph.process.traversal.strategy.optimization.TinkerGraphCountStrategy;
 import org.apache.tinkerpop.gremlin.tinkergraph.process.traversal.strategy.optimization.TinkerGraphStepStrategy;
+import org.apache.tinkerpop.gremlin.tinkergraph.process.traversal.strategy.optimization.TinkerMergeEVStepStrategy;
+import org.apache.tinkerpop.gremlin.tinkergraph.services.TinkerServiceRegistry;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -54,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
+import static org.apache.tinkerpop.gremlin.tinkergraph.services.TinkerServiceRegistry.TinkerServiceFactory;
+
 /**
  * An in-memory (with optional persistence on calls to {@link #close()}), reference implementation of the property
  * graph interfaces provided by TinkerPop.
@@ -65,12 +70,15 @@ import java.util.stream.Stream;
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_INTEGRATE)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_COMPUTER)
+@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_LIMITED_STANDARD)
+@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_LIMITED_COMPUTER)
 public final class TinkerGraph implements Graph {
 
     static {
         TraversalStrategies.GlobalCache.registerStrategies(TinkerGraph.class, TraversalStrategies.GlobalCache.getStrategies(Graph.class).clone().addStrategies(
                 TinkerGraphStepStrategy.instance(),
-                TinkerGraphCountStrategy.instance()));
+                TinkerGraphCountStrategy.instance(),
+                TinkerMergeEVStepStrategy.instance()));
     }
 
     private static final Configuration EMPTY_CONFIGURATION = new BaseConfiguration() {{
@@ -84,6 +92,7 @@ public final class TinkerGraph implements Graph {
     public static final String GREMLIN_TINKERGRAPH_GRAPH_LOCATION = "gremlin.tinkergraph.graphLocation";
     public static final String GREMLIN_TINKERGRAPH_GRAPH_FORMAT = "gremlin.tinkergraph.graphFormat";
     public static final String GREMLIN_TINKERGRAPH_ALLOW_NULL_PROPERTY_VALUES = "gremlin.tinkergraph.allowNullPropertyValues";
+    public static final String GREMLIN_TINKERGRAPH_SERVICE = "gremlin.tinkergraph.service";
 
     private final TinkerGraphFeatures features = new TinkerGraphFeatures();
 
@@ -101,6 +110,8 @@ public final class TinkerGraph implements Graph {
     protected final IdManager<?> vertexPropertyIdManager;
     protected final VertexProperty.Cardinality defaultVertexPropertyCardinality;
     protected final boolean allowNullPropertyValues;
+
+    protected final TinkerServiceRegistry serviceRegistry;
 
     private final Configuration configuration;
     private final String graphLocation;
@@ -126,6 +137,10 @@ public final class TinkerGraph implements Graph {
                     GREMLIN_TINKERGRAPH_GRAPH_LOCATION, GREMLIN_TINKERGRAPH_GRAPH_FORMAT));
 
         if (graphLocation != null) loadGraph();
+
+        serviceRegistry = new TinkerServiceRegistry(this);
+        configuration.getList(String.class, GREMLIN_TINKERGRAPH_SERVICE, Collections.emptyList()).forEach(serviceClass ->
+                serviceRegistry.registerService(instantiate(serviceClass)));
     }
 
     /**
@@ -231,6 +246,8 @@ public final class TinkerGraph implements Graph {
     @Override
     public void close() {
         if (graphLocation != null) saveGraph();
+        // shutdown services
+        serviceRegistry.close();
     }
 
     @Override
@@ -241,6 +258,11 @@ public final class TinkerGraph implements Graph {
     @Override
     public Configuration configuration() {
         return configuration;
+    }
+
+    @Override
+    public TinkerServiceRegistry getServiceRegistry() {
+        return serviceRegistry;
     }
 
     @Override
@@ -305,18 +327,20 @@ public final class TinkerGraph implements Graph {
                                                                   final Object... ids) {
         final Iterator<T> iterator;
         if (0 == ids.length) {
-            iterator = new TinkerGraphIterator<T>(elements.values().iterator());
+            iterator = new TinkerGraphIterator<>(elements.values().iterator());
         } else {
             final List<Object> idList = Arrays.asList(ids);
-            validateHomogenousIds(idList);
 
-            // if the type is of Element - have to look each up because it might be an Attachable instance or
-            // other implementation. the assumption is that id conversion is not required for detached
-            // stuff - doesn't seem likely someone would detach a Titan vertex then try to expect that
-            // vertex to be findable in OrientDB
-            return clazz.isAssignableFrom(ids[0].getClass()) ?
-                    new TinkerGraphIterator<T>(IteratorUtils.filter(IteratorUtils.map(idList, id -> elements.get(clazz.cast(id).id())).iterator(), Objects::nonNull))
-                    : new TinkerGraphIterator<T>(IteratorUtils.filter(IteratorUtils.map(idList, id -> elements.get(idManager.convert(id))).iterator(), Objects::nonNull));
+            // TinkerGraph can take a Vertex/Edge or any object as an "id". If it is an Element then we just cast
+            // to that type and pop off the identifier. there is no need to pass that through the IdManager since
+            // the assumption is that if it's already an Element, its identifier must be valid to the Graph and to
+            // its associated IdManager. All other objects are passed to the IdManager for conversion.
+            return new TinkerGraphIterator<>(IteratorUtils.filter(IteratorUtils.map(idList, id -> {
+                // ids cant be null so all of those filter out
+                if (null == id) return null;
+                final Object iid = clazz.isAssignableFrom(id.getClass()) ? clazz.cast(id).id() : idManager.convert(id);
+                return elements.get(idManager.convert(iid));
+            }).iterator(), Objects::nonNull));
         }
         return TinkerHelper.inComputerMode(this) ?
                 (Iterator<T>) (clazz.equals(Vertex.class) ?
@@ -334,19 +358,6 @@ public final class TinkerGraph implements Graph {
     @Override
     public Features features() {
         return features;
-    }
-
-    private void validateHomogenousIds(final List<Object> ids) {
-        final Iterator<Object> iterator = ids.iterator();
-        Object id = iterator.next();
-        if (id == null)
-            throw Graph.Exceptions.idArgsMustBeEitherIdOrElement();
-        final Class firstClass = id.getClass();
-        while (iterator.hasNext()) {
-            id = iterator.next();
-            if (id == null || !id.getClass().equals(firstClass))
-                throw Graph.Exceptions.idArgsMustBeEitherIdOrElement();
-        }
     }
 
     public class TinkerGraphFeatures implements Features {
@@ -454,6 +465,11 @@ public final class TinkerGraph implements Graph {
             return false;
         }
 
+        @Override
+        public boolean supportsServiceCall() {
+            return true;
+        }
+
     }
 
     public class TinkerGraphVertexPropertyFeatures implements Features.VertexPropertyFeatures {
@@ -547,6 +563,15 @@ public final class TinkerGraph implements Graph {
             } catch (Exception ex) {
                 throw new IllegalStateException(String.format("Could not configure TinkerGraph %s id manager with %s", clazz.getSimpleName(), vertexIdManagerConfigValue));
             }
+        }
+    }
+
+    private TinkerServiceFactory instantiate(final String className) {
+        try {
+            return (TinkerServiceFactory) Class.forName(className).getConstructor(TinkerGraph.class).newInstance(this);
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException |
+                 NoSuchMethodException | InvocationTargetException ex) {
+            throw new RuntimeException(ex);
         }
     }
 

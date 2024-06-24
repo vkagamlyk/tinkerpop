@@ -32,6 +32,7 @@ using Gremlin.Net.Process.Traversal.Step.Util;
 using Gremlin.Net.Process.Traversal.Strategy.Decoration;
 using Gremlin.Net.Structure.IO.GraphBinary;
 using Gremlin.Net.Structure.IO.GraphSON;
+using Microsoft.Extensions.Logging;
 using Xunit;
 // tag::commonImports[]
 using static Gremlin.Net.Process.Traversal.AnonymousTraversalSource;
@@ -58,9 +59,21 @@ namespace Gremlin.Net.IntegrationTest.Docs.Reference
         public void ConnectingTest()
         {
 // tag::connecting[]
-var remoteConnection = new DriverRemoteConnection(new GremlinClient(new GremlinServer("localhost", 8182)), "g");
+using var remoteConnection = new DriverRemoteConnection(new GremlinClient(new GremlinServer("localhost", 8182)), "g");
 var g = Traversal().WithRemote(remoteConnection);
 // end::connecting[]
+        }
+        
+        [Fact(Skip="No Server under localhost")]
+        public void LoggingTest()
+        {
+// tag::logging[]
+var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddConsole();
+});
+var client = new GremlinClient(new GremlinServer("localhost", 8182), loggerFactory: loggerFactory);
+// end::logging[]
         }
         
         [Fact(Skip="No Server under localhost")]
@@ -77,6 +90,14 @@ var client = new GremlinClient(new GremlinServer("localhost", 8182), new GraphBi
 // tag::serializationGraphSon[]
 var client = new GremlinClient(new GremlinServer("localhost", 8182), new GraphSON2MessageSerializer());
 // end::serializationGraphSon[]
+        }
+
+        [Fact(Skip = "No Server under localhost")]
+        public void SerializationGraphson3Test()
+        {
+// tag::serializationGraphSon3[]
+var client = new GremlinClient(new GremlinServer("localhost", 8182), new GraphSON3MessageSerializer());
+// end::serializationGraphSon3[]
         }
 
         [Fact(Skip="We can't apply strategies")]

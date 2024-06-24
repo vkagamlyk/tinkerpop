@@ -22,32 +22,28 @@ import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Host;
 import org.apache.tinkerpop.gremlin.driver.LoadBalancingStrategy;
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
 import org.apache.tinkerpop.gremlin.driver.Result;
 import org.apache.tinkerpop.gremlin.driver.ResultSet;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
+import org.apache.tinkerpop.gremlin.util.Tokens;
 import org.apache.tinkerpop.gremlin.driver.exception.ConnectionException;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseResult;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatus;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseResult;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatus;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.driver.remote.DriverRemoteConnection;
 import org.apache.tinkerpop.gremlin.driver.remote.DriverRemoteTraversal;
-import org.apache.tinkerpop.gremlin.driver.ser.GraphBinaryMessageSerializerV1;
-import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerGremlinV1d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerGremlinV2d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV1d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GraphSONMessageSerializerV2d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GryoLiteMessageSerializerV1d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0;
-import org.apache.tinkerpop.gremlin.driver.ser.JsonBuilderGryoSerializer;
-import org.apache.tinkerpop.gremlin.driver.ser.MessageTextSerializer;
-import org.apache.tinkerpop.gremlin.driver.ser.SerTokens;
-import org.apache.tinkerpop.gremlin.driver.ser.SerializationException;
-import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
+import org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1;
+import org.apache.tinkerpop.gremlin.util.ser.GraphSONMessageSerializerGremlinV1d0;
+import org.apache.tinkerpop.gremlin.util.ser.GraphSONMessageSerializerGremlinV2d0;
+import org.apache.tinkerpop.gremlin.util.ser.GraphSONMessageSerializerV1d0;
+import org.apache.tinkerpop.gremlin.util.ser.GraphSONMessageSerializerV2d0;
+import org.apache.tinkerpop.gremlin.util.ser.MessageTextSerializer;
+import org.apache.tinkerpop.gremlin.util.ser.SerTokens;
+import org.apache.tinkerpop.gremlin.util.ser.SerializationException;
+import org.apache.tinkerpop.gremlin.util.ser.Serializers;
 import org.apache.tinkerpop.gremlin.jsr223.AbstractGremlinPlugin;
 import org.apache.tinkerpop.gremlin.jsr223.DefaultImportCustomizer;
 import org.apache.tinkerpop.gremlin.jsr223.ImportCustomizer;
@@ -82,11 +78,7 @@ public class DriverGremlinPlugin extends AbstractGremlinPlugin {
                     GraphSONMessageSerializerGremlinV2d0.class,
                     GraphSONMessageSerializerV1d0.class,
                     GraphSONMessageSerializerV2d0.class,
-                    GryoLiteMessageSerializerV1d0.class,
-                    GryoMessageSerializerV1d0.class,
-                    GryoMessageSerializerV3d0.class,
                     GraphBinaryMessageSerializerV1.class,
-                    JsonBuilderGryoSerializer.class,
                     MessageTextSerializer.class,
                     SerializationException.class,
                     Serializers.class,

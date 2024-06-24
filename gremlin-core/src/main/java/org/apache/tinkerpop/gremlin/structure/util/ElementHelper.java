@@ -68,23 +68,6 @@ public final class ElementHelper {
     }
 
     /**
-     * Determine whether an array of ids are either all elements or ids of elements. This is typically used as a pre-condition check.
-     *
-     * @param clazz the class of the element for which the ids will bind
-     * @param ids   the ids that must be either elements or id objects, else
-     * {@link org.apache.tinkerpop.gremlin.structure.Graph.Exceptions#idArgsMustBeEitherIdOrElement()} is thrown.
-     */
-    public static void validateMixedElementIds(final Class<? extends Element> clazz, final Object... ids) throws IllegalArgumentException {
-        if (ids.length > 1) {
-            final boolean element = clazz.isAssignableFrom(ids[0].getClass());
-            for (int i = 1; i < ids.length; i++) {
-                if (clazz.isAssignableFrom(ids[i].getClass()) != element)
-                    throw Graph.Exceptions.idArgsMustBeEitherIdOrElement();
-            }
-        }
-    }
-
-    /**
      * Determines whether the property key/value for the specified thing can be legally set. This is typically used as
      * a pre-condition check prior to setting a property.
      *
@@ -215,7 +198,7 @@ public final class ElementHelper {
      * assure that key positions contain strings and that there are an even number of elements.
      */
     public static Map<String, Object> asMap(final Object... keyValues) {
-        return asPairs(keyValues).stream().collect(Collectors.toMap(p -> p.getValue0(), p -> p.getValue1()));
+        return asPairs(keyValues).stream().collect(Collectors.toMap(Pair::getValue0, Pair::getValue1));
     }
 
     /**
@@ -223,7 +206,7 @@ public final class ElementHelper {
      * assure that key positions contain strings and that there are an even number of elements.
      */
     public static List<Pair<String, Object>> asPairs(final Object... keyValues) {
-        final List list = Arrays.asList(keyValues);
+        final List<Object> list = Arrays.asList(keyValues);
         return IntStream.range(1, list.size())
                 .filter(i -> i % 2 != 0)
                 .mapToObj(i -> Pair.with(list.get(i - 1).toString(), list.get(i)))
@@ -565,10 +548,11 @@ public final class ElementHelper {
 
         // it is OK to evaluate equality of ids via toString() now given that the toString() the test suite
         // enforces the value of id.()toString() to be a first class representation of the identifier
-        if (1 == providedIds.length) return id.toString().equals(providedIds[0].toString());
-        else {
+        if (1 == providedIds.length) {
+            return id != null && providedIds[0] != null && id.toString().equals(providedIds[0].toString());
+        } else {
             for (final Object temp : providedIds) {
-                if (temp.toString().equals(id.toString()))
+                if (id != null && temp != null && temp.toString().equals(id.toString()))
                     return true;
             }
             return false;

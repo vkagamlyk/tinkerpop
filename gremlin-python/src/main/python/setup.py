@@ -46,9 +46,8 @@ version = __version__.version
 
 install_requires = [
     'nest_asyncio',
-    'aiohttp>=3.8.0,<=3.8.1',
-    'aenum>=1.4.5,<3.0.0',
-    'six>=1.10.0,<2.0.0',
+    'aiohttp>=3.8.0,<4.0.0',
+    'aenum>=1.4.5,<4.0.0',
     'isodate>=0.6.0,<1.0.0'
 ]
 
@@ -70,17 +69,19 @@ setup(
     data_files=[("", ["LICENSE", "NOTICE"])],
     setup_requires=[
         'pytest-runner==6.0.0',
-        'importlib-metadata<3.0.0'
+        'importlib-metadata<5.0.0'
     ],
     tests_require=[
         'pytest>=4.6.4,<7.2.0',
-        'mock>=3.0.5,<4.0.0',
-        'radish-bdd==0.8.6',
-        'PyHamcrest>=1.9.0,<2.0.0'
+        'mock>=3.0.5,<5.0.0',
+        'radish-bdd==0.13.4',
+        'PyHamcrest>=1.9.0,<3.0.0',
+        'PyYAML>=5.3'
     ],
     install_requires=install_requires,
-    extra_require={
-        'kerberos': 'kerberos>=1.3.0,<2.0.0'    # Does not install in Microsoft Windows
+    extras_require={
+        'kerberos': 'kerberos>=1.3.0,<2.0.0',    # Does not install in Microsoft Windows
+        'ujson': 'ujson>=2.0.0'
     },
     classifiers=[
         "Intended Audience :: Developers",

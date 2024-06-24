@@ -23,6 +23,7 @@ module.exports = {
   env: {
     commonjs: true,
     es6: true,
+    node: true,
   },
   parserOptions: {
     ecmaVersion: 2017,
@@ -31,9 +32,9 @@ module.exports = {
   extends: ['eslint:recommended', 'prettier'],
   plugins: ['prettier'],
   rules: {
-    'prettier/prettier': ['error'],
+    'prettier/prettier': ['error', { endOfLine: 'auto' }],
     indent: ['error', 2, { SwitchCase: 1 }],
-    'linebreak-style': ['error', 'unix'],
+    'linebreak-style': 0,
     quotes: ['error', 'single'],
     semi: ['error', 'always'],
     'no-constant-condition': ['error', { checkLoops: false }],

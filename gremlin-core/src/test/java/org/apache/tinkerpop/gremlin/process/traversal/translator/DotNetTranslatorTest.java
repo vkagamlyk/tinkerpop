@@ -19,13 +19,14 @@
 
 package org.apache.tinkerpop.gremlin.process.traversal.translator;
 
+import org.apache.tinkerpop.gremlin.process.traversal.Merge;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
+import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
-import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SeedStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SubgraphStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ReadOnlyStrategy;
@@ -43,6 +44,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource.traversal;
@@ -139,6 +141,13 @@ public class DotNetTranslatorTest {
     }
 
     @Test
+    public void shouldTranslateTextP() {
+        assertTranslation("TextP.Containing(\"ark\")", TextP.containing("ark"));
+        assertTranslation("TextP.Regex(\"ark\")", TextP.regex("ark"));
+        assertTranslation("TextP.NotRegex(\"ark\")", TextP.notRegex("ark"));
+    }
+
+    @Test
     public void shouldTranslateColumn() {
         assertTranslation("Column.Keys", Column.keys);
     }
@@ -173,11 +182,11 @@ public class DotNetTranslatorTest {
         String script = translator.translate(g.V().hasLabel(null).asAdmin().getBytecode()).getScript();
         assertEquals("g.V().HasLabel((string) null)", script);
         script = translator.translate(g.V().hasLabel(null, null).asAdmin().getBytecode()).getScript();
-        assertEquals("g.V().HasLabel((string) null,(string) null)", script);
+        assertEquals("g.V().HasLabel(null,null)", script);
         script = translator.translate(g.V().hasLabel(null, "person").asAdmin().getBytecode()).getScript();
-        assertEquals("g.V().HasLabel((string) null,\"person\")", script);
+        assertEquals("g.V().HasLabel(null,\"person\")", script);
         script = translator.translate(g.V().hasLabel(null, "person", null).asAdmin().getBytecode()).getScript();
-        assertEquals("g.V().HasLabel((string) null,\"person\",(string) null)", script);
+        assertEquals("g.V().HasLabel(null,\"person\",null)", script);
         script = translator.translate(g.V().has(T.label, (Object) null).asAdmin().getBytecode()).getScript();
         assertEquals("g.V().Has(T.Label,(object) null)", script);
     }
@@ -188,6 +197,12 @@ public class DotNetTranslatorTest {
         assertEquals("g.V().Has(\"k\",(object) null)", script);
         script = translator.translate(g.V().has("l", "k", (Object) null).asAdmin().getBytecode()).getScript();
         assertEquals("g.V().Has(\"l\",\"k\",(object) null)", script);
+    }
+
+    @Test
+    public void shouldTranslateMergeVNull() {
+        String script = translator.translate(g.mergeV((Map) null).option(Merge.onCreate, (Map) null).asAdmin().getBytecode()).getScript();
+        assertEquals("g.MergeV((IDictionary<object,object>) null).Option(Merge.OnCreate, (IDictionary<object,object>) null)", script);
     }
 
     @Test

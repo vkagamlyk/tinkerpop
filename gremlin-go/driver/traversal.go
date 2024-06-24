@@ -30,7 +30,7 @@ type Traverser struct {
 // Traversal is the primary way in which graphs are processed.
 type Traversal struct {
 	graph    *Graph
-	bytecode *bytecode
+	Bytecode *Bytecode
 	remote   *DriverRemoteConnection
 	results  ResultSet
 }
@@ -41,7 +41,7 @@ func (t *Traversal) ToList() ([]*Result, error) {
 		return nil, newError(err0901ToListAnonTraversalError)
 	}
 
-	results, err := t.remote.submitBytecode(t.bytecode)
+	results, err := t.remote.submitBytecode(t.Bytecode)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +74,12 @@ func (t *Traversal) Iterate() <-chan error {
 			return
 		}
 
-		if err := t.bytecode.addStep("none"); err != nil {
+		if err := t.Bytecode.AddStep("none"); err != nil {
 			r <- err
 			return
 		}
 
-		res, err := t.remote.submitBytecode(t.bytecode)
+		res, err := t.remote.submitBytecode(t.Bytecode)
 		if err != nil {
 			r <- err
 			return
@@ -118,7 +118,7 @@ func (t *Traversal) Next() (*Result, error) {
 // GetResultSet submits the traversal and returns the ResultSet.
 func (t *Traversal) GetResultSet() (ResultSet, error) {
 	if t.results == nil {
-		results, err := t.remote.submitBytecode(t.bytecode)
+		results, err := t.remote.submitBytecode(t.Bytecode)
 		if err != nil {
 			return nil, err
 		}
@@ -172,6 +172,8 @@ type directions struct {
 	In   direction
 	Out  direction
 	Both direction
+	From direction
+	To   direction
 }
 
 // Direction is used to denote the direction of an Edge or location of a Vertex on an Edge.
@@ -179,6 +181,8 @@ var Direction = directions{
 	In:   "IN",
 	Out:  "OUT",
 	Both: "BOTH",
+	From: "OUT",
+	To:   "IN",
 }
 
 type order string
@@ -263,6 +267,21 @@ var T = ts{
 	Id_:   "id_",
 	Key:   "key",
 	Value: "value",
+}
+
+type merge string
+
+type merges struct {
+	// OnCreate Merges on create.
+	OnCreate merge
+	// OnMatch Merges on match.
+	OnMatch merge
+}
+
+// Merge is a set of operations for Vertex and Edge merging.
+var Merge = merges{
+	OnCreate: "onCreate",
+	OnMatch:  "onMatch",
 }
 
 type operator string
@@ -455,6 +474,10 @@ type TextPredicate interface {
 	And(args ...interface{}) TextPredicate
 	// Or TextPredicate returns a TextPredicate composed of two predicates (logical OR of them).
 	Or(args ...interface{}) TextPredicate
+	// Regex TextPredicate determines if a string matches the specified regex expression.
+	Regex(args ...interface{}) TextPredicate
+	// NotRegex TextPredicate determines if a string does not match the specified regex expression.
+	NotRegex(args ...interface{}) TextPredicate
 }
 
 type textP p
@@ -502,6 +525,16 @@ func (*textP) NotStartingWith(args ...interface{}) TextPredicate {
 // StartingWith TextPredicate determines if a string starts with a given value.
 func (*textP) StartingWith(args ...interface{}) TextPredicate {
 	return newTextP("startingWith", args...)
+}
+
+// NotRegex TextPredicate determines if a string does not match the specified regex expression.
+func (*textP) NotRegex(args ...interface{}) TextPredicate {
+	return newTextP("notRegex", args...)
+}
+
+// Regex TextPredicate determines if a string matches the specified regex expression.
+func (*textP) Regex(args ...interface{}) TextPredicate {
+	return newTextP("regex", args...)
 }
 
 // And TextPredicate returns a TextPredicate composed of two predicates (logical AND of them).

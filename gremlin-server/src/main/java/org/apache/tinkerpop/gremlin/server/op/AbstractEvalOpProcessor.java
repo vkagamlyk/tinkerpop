@@ -19,12 +19,13 @@
 package org.apache.tinkerpop.gremlin.server.op;
 
 import com.codahale.metrics.Timer;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.groovy.engine.GremlinExecutor;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.TimedInterruptTimeoutException;
+import org.apache.tinkerpop.gremlin.process.traversal.Failure;
 import org.apache.tinkerpop.gremlin.process.traversal.Operator;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.Pop;
@@ -36,8 +37,10 @@ import org.apache.tinkerpop.gremlin.structure.Column;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.server.Context;
 import org.apache.tinkerpop.gremlin.server.GremlinServer;
+import org.apache.tinkerpop.gremlin.server.GraphManager;
 import org.apache.tinkerpop.gremlin.server.Settings;
 import org.apache.tinkerpop.gremlin.server.util.MetricManager;
+import org.apache.tinkerpop.gremlin.structure.util.TemporaryException;
 import org.apache.tinkerpop.gremlin.util.function.ThrowingConsumer;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.codehaus.groovy.control.MultipleCompilationErrorsException;
@@ -209,6 +212,7 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
         final Timer.Context timerContext = evalOpTimer.time();
         final RequestMessage msg = ctx.getRequestMessage();
         final GremlinExecutor gremlinExecutor = gremlinExecutorSupplier.get();
+        final GraphManager graphManager = ctx.getGraphManager();
         final Settings settings = ctx.getSettings();
 
         final Map<String, Object> args = msg.getArgs();
@@ -229,9 +233,14 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
         final GremlinExecutor.LifeCycle lifeCycle = GremlinExecutor.LifeCycle.build()
                 .evaluationTimeoutOverride(seto)
                 .afterFailure((b,t) -> {
+                    graphManager.onQueryError(msg, t);
                     if (managedTransactionsForRequest) attemptRollback(msg, ctx.getGraphManager(), settings.strictTransactionManagement);
                 })
+                .afterTimeout((b, t) -> {
+                  graphManager.onQueryError(msg, t);
+                })
                 .beforeEval(b -> {
+                    graphManager.beforeQueryStart(msg);
                     try {
                         b.putAll(bindingsSupplier.get());
                     } catch (OpProcessorException ope) {
@@ -253,14 +262,10 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
                         if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
                         auditLogger.info("User {} with address {} requested: {}", user.getName(), address, script);
                     }
-                    if (settings.authentication.enableAuditLog) {
-                        String address = ctx.getChannelHandlerContext().channel().remoteAddress().toString();
-                        if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
-                        auditLogger.info("User with address {} requested: {}", address, script);
-                    }
 
                     try {
                         handleIterator(ctx, itty);
+                        graphManager.onQuerySuccess(msg);
                     } catch (Exception ex) {
                         if (managedTransactionsForRequest) attemptRollback(msg, ctx.getGraphManager(), settings.strictTransactionManagement);
 
@@ -277,13 +282,22 @@ public abstract class AbstractEvalOpProcessor extends AbstractOpProcessor {
                 timerContext.stop();
 
                 if (t != null) {
-                    // if any exception in the chain is TemporaryException then we should respond with the right error
-                    // code so that the client knows to retry
-                    final Optional<Throwable> possibleTemporaryException = determineIfTemporaryException(t);
-                    if (possibleTemporaryException.isPresent()) {
-                        ctx.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.SERVER_ERROR_TEMPORARY)
-                                .statusMessage(possibleTemporaryException.get().getMessage())
-                                .statusAttributeException(possibleTemporaryException.get()).create());
+                    // if any exception in the chain is TemporaryException or Failure then we should respond with the
+                    // right error code so that the client knows to retry
+                    final Optional<Throwable> possibleSpecialException = determineIfSpecialException(t);
+                    if (possibleSpecialException.isPresent()) {
+                        final Throwable special = possibleSpecialException.get();
+                        final ResponseMessage.Builder specialResponseMsg = ResponseMessage.build(msg).
+                                statusMessage(special.getMessage()).
+                                statusAttributeException(special);
+                        if (special instanceof TemporaryException) {
+                            specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_TEMPORARY);
+                        } else if (special instanceof Failure) {
+                            final Failure failure = (Failure) special;
+                            specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_FAIL_STEP).
+                                    statusAttribute(Tokens.STATUS_ATTRIBUTE_FAIL_STEP_MESSAGE, failure.format());
+                        }
+                        ctx.writeAndFlush(specialResponseMsg.create());
                     } else if (t instanceof OpProcessorException) {
                         ctx.writeAndFlush(((OpProcessorException) t).getResponseMessage());
                     } else if (t instanceof TimedInterruptTimeoutException) {

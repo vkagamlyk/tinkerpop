@@ -21,7 +21,7 @@ limitations under the License.
     <parent>
         <artifactId>gremlin-tools</artifactId>
         <groupId>org.apache.tinkerpop</groupId>
-        <version>3.5.4-SNAPSHOT</version>
+        <version>3.7.0-SNAPSHOT</version>
     </parent>
     <artifactId>gremlin-io-test</artifactId>
     <name>Apache TinkerPop :: Gremlin IO Test</name>
@@ -60,9 +60,8 @@ limitations under the License.
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <optional>true</optional>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
@@ -121,9 +120,9 @@ limitations under the License.
                                 <scope>runtime</scope>
                             </dependency>
                             <dependency>
-                                <groupId>log4j</groupId>
-                                <artifactId>log4j</artifactId>
-                                <version>1.2.17</version>
+                                <groupId>ch.qos.logback</groupId>
+                                <artifactId>logback-classic</artifactId>
+                                <version>${logback.version}</version>
                                 <scope>runtime</scope>
                             </dependency>
                         </dependencies>
@@ -151,32 +150,6 @@ limitations under the License.
                                     </properties>
                                     <scripts>
                                         <script>${project.basedir}/scripts/generate-graphson-resources.groovy</script>
-                                    </scripts>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>generate-io-files-gryo</id>
-                                <phase>generate-test-resources</phase>
-                                <goals>
-                                    <goal>execute</goal>
-                                </goals>
-                                <configuration>
-                                    <properties>
-                                        <property>
-                                            <name>projectBuildDir</name>
-                                            <value>${project.build.directory}</value>
-                                        </property>
-                                        <property>
-                                            <name>projectBaseDir</name>
-                                            <value>${project.build.directory}</value>
-                                        </property>
-                                        <property>
-                                            <name>projectVersion</name>
-                                            <value>${project.version}</value>
-                                        </property>
-                                    </properties>
-                                    <scripts>
-                                        <script>${project.basedir}/scripts/generate-gryo-resources.groovy</script>
                                     </scripts>
                                 </configuration>
                             </execution>
@@ -213,14 +186,19 @@ limitations under the License.
                                     <goal>execute</goal>
                                 </goals>
                                 <configuration>
+                                    <properties>
+                                        <property>
+                                            <name>projectBuildDir</name>
+                                            <value>${project.build.directory}</value>
+                                        </property>
+                                    </properties>
                                     <scripts>
                                         <script>
                                             <![CDATA[
 import org.apache.tinkerpop.gremlin.structure.io.Model
 import java.io.File
 
-new File("${project.build.directory}/dev-docs/").mkdirs()
-Model.instance().saveAsCsv("${project.build.directory}/dev-docs/model.csv")
+Model.instance().saveAsCsv(new File(projectBuildDir, "dev-docs/model.csv"))
 ]]>
                                         </script>
                                     </scripts>

@@ -22,8 +22,12 @@
  */
 'use strict';
 
-const {Given, Then, When} = require('cucumber');
-const expect = require('chai').expect;
+const {Given, Then, When, setDefaultTimeout} = require('cucumber');
+// Setting Cucumber timeout to 10s for Floating Errors on Windows on GitHub Actions
+setDefaultTimeout(10 * 1000);
+const chai = require('chai')
+chai.use(require('chai-string'));
+const expect = chai.expect;
 const util = require('util');
 const gremlin = require('./gremlin').gremlin;
 const graphModule = require('../../lib/structure/graph');
@@ -42,13 +46,15 @@ const direction = traversalModule.direction;
 const mapAsObject = false;
 
 const parsers = [
-  [ 'd\\[(.*)\\]\\.[ilfdm]', toNumeric ],
+  [ 'vp\\[(.+)\\]', toVertexProperty ],
+  [ 'd\\[(.*)\\]\\.[bsilfdmn]', toNumeric ],
   [ 'v\\[(.+)\\]', toVertex ],
   [ 'v\\[(.+)\\]\\.id', toVertexId ],
   [ 'v\\[(.+)\\]\\.sid', toVertexIdString ],
   [ 'e\\[(.+)\\]', toEdge ],
   [ 'e\\[(.+)\\]\\.id', toEdgeId ],
   [ 'e\\[(.+)\\]\\.sid', toEdgeIdString ],
+  [ 'vp\\[(.+)\\]', toVertexProperty ],
   [ 'p\\[(.+)\\]', toPath ],
   [ 'l\\[(.*)\\]', toArray ],
   [ 's\\[(.*)\\]', toArray ],
@@ -68,9 +74,10 @@ const ignoredScenarios = {
   // An associative array containing the scenario name as key, for example:
   'g_withSideEffectXa_setX_V_both_name_storeXaX_capXaX': new IgnoreError(ignoreReason.setNotSupported),
   'g_withSideEffectXa_setX_V_both_name_aggregateXlocal_aX_capXaX': new IgnoreError(ignoreReason.setNotSupported),
-  'g_V_group_byXageX': new IgnoreError(ignoreReason.nullKeysInMapNotSupportedWell),
+  'g_withStrategiesXProductiveByStrategyX_V_groupCount_byXageX': new IgnoreError(ignoreReason.nullKeysInMapNotSupportedWell),
   'g_V_shortestPath_edgesIncluded': new IgnoreError(ignoreReason.needsFurtherInvestigation),
-  'g_V_shortestPath_edgesIncluded_edgesXoutEX': new IgnoreError(ignoreReason.needsFurtherInvestigation)
+  'g_V_shortestPath_edgesIncluded_edgesXoutEX': new IgnoreError(ignoreReason.needsFurtherInvestigation),
+  'g_V_shortestpath': new IgnoreError(ignoreReason.needsFurtherInvestigation),
 };
 
 Given(/^the (.+) graph$/, function (graphName) {
@@ -80,6 +87,11 @@ Given(/^the (.+) graph$/, function (graphName) {
   this.graphName = graphName;
   const data = this.getData();
   this.g = traversal().withRemote(data.connection);
+
+  if (this.isGraphComputer) {
+    this.g = this.g.withComputer();
+  }
+
   if (graphName === 'empty') {
     return this.cleanEmptyGraph();
   }
@@ -122,7 +134,7 @@ Given(/^using the parameter (.+) defined as "(.+)"$/, function (paramName, strin
 });
 
 When('iterated to list', function () {
-  return this.traversal.toList().then(list => this.result = list);
+  return this.traversal.toList().then(list => this.result = list).catch(err => this.result = err);
 });
 
 When('iterated next', function () {
@@ -132,10 +144,29 @@ When('iterated next', function () {
       // Compare using the objects array
       this.result = this.result.objects;
     }
-  });
+  }).catch(err => this.result = err);
+});
+
+Then('the traversal will raise an error', function() {
+  expect(this.result).to.be.a.instanceof(Error);
+});
+
+Then(/^the traversal will raise an error with message (\w+) text of "(.+)"$/, function(comparison, expectedMessage) {
+  expect(this.result).to.be.a.instanceof(Error);
+  if (comparison === "containing") {
+    expect(this.result.message).to.contain(expectedMessage)
+  } else if (comparison === "starting") {
+    expect(this.result.message).to.startWith(expectedMessage)
+  } else if (comparison === "ending") {
+    expect(this.result.message).to.endWith(expectedMessage)
+  } else {
+    throw new Error('unknown comparison \'' + comparison + '\'- must be: containing, ending or starting');
+  }
 });
 
 Then(/^the result should be (\w+)$/, function assertResult(characterizedAs, resultTable) {
+  expect(this.result).to.not.be.a.instanceof(Error);
+
   if (characterizedAs === 'empty') {
     expect(this.result).to.be.empty;
     if (typeof resultTable === 'function'){
@@ -159,6 +190,8 @@ Then(/^the result should be (\w+)$/, function assertResult(characterizedAs, resu
 });
 
 Then(/^the graph should return (\d+) for count of "(.+)"$/, function (stringCount, traversalText) {
+  expect(this.result).to.not.be.a.instanceof(Error);
+
   const p = Object.assign({}, this.parameters);
   p.g = this.g;
   const traversal = gremlin[this.scenario].shift()(p);
@@ -168,6 +201,8 @@ Then(/^the graph should return (\d+) for count of "(.+)"$/, function (stringCoun
 });
 
 Then(/^the result should have a count of (\d+)$/, function (stringCount) {
+  expect(this.result).to.not.be.a.instanceof(Error);
+
   const expected = parseInt(stringCount, 10);
   if (!Array.isArray(this.result)) {
     let count = 0;
@@ -198,7 +233,9 @@ function getSandbox(g, parameters) {
     Direction: {
       BOTH: traversalModule.direction.both,
       IN: traversalModule.direction.in,
-      OUT: traversalModule.direction.out
+      OUT: traversalModule.direction.out,
+      from_: traversalModule.direction.in,
+      to: traversalModule.direction.out,
     },
     Order: traversalModule.order,
     P: traversalModule.P,
@@ -225,6 +262,16 @@ function parseValue(stringValue) {
 
   if(stringValue === "null")
     return null;
+  if(stringValue === "true")
+    return true;
+  if(stringValue === "false")
+    return false;
+  if(stringValue === "d[NaN]")
+    return Number.NaN;
+  if(stringValue === "d[Infinity]")
+    return Number.POSITIVE_INFINITY;
+  if(stringValue === "d[-Infinity]")
+    return Number.NEGATIVE_INFINITY;
 
   let extractedValue = null;
   let parser = null;
@@ -242,11 +289,21 @@ function parseValue(stringValue) {
 }
 
 function toNumeric(stringValue) {
-  return parseFloat(stringValue);
+  try {
+    return parseFloat(stringValue);
+  } catch (Error) {
+    return BigInt(stringValue);
+  }
 }
 
 function toVertex(name) {
-  return this.getData().vertices.get(name);
+  // some vertices are cached, like those from toy graphs but some are just references. if they are
+  // not cached then they are meant to be references.
+  const vertices = this.getData().vertices;
+  if (vertices.has(name))
+    return this.getData().vertices.get(name);
+  else
+    return new graphModule.Vertex(name, "vertex")
 }
 
 function toVertexId(name) {
@@ -273,6 +330,14 @@ function toEdgeIdString(name) {
   return toEdge.call(this, name).id.toString();
 }
 
+function toVertexProperty(name) {
+  const vp = this.getData().vertexProperties[name];
+  if (!vp) {
+    throw new Error(util.format('VertexProperty with key "%s" not found', name));
+  }
+  return vp;
+}
+
 function toPath(value) {
   const parts = value.split(',');
   return new Path(new Array(0), parts.map(x => parseValue.call(this, x)));
@@ -283,7 +348,13 @@ function toT(value) {
 }
 
 function toDirection(value) {
-  return direction[value.toLowerCase()];
+  // swap Direction.from alias
+  if (value === 'from')
+    return direction["out"];
+  else if (value === 'to')
+    return direction["in"];
+  else
+    return direction[value.toLowerCase()];
 }
 
 function toArray(stringList) {

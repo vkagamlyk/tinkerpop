@@ -22,11 +22,11 @@ package gremlingo
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"github.com/apache/tinkerpop/gremlin-go/v3/driver/resources"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
-	"path/filepath"
-	"runtime"
-	"strings"
 )
 
 type errorCode string
@@ -89,7 +89,7 @@ const (
 	err0902IterateAnonTraversalError errorCode = "E0902_TRAVERSAL_ITERATE_ANON_TRAVERSAL_ERROR"
 	err0903NextNoResultsLeftError    errorCode = "E0903_TRAVERSAL_NEXT_NO_RESULTS_LEFT_ERROR"
 
-	// bytecode.go errors
+	// Bytecode.go errors
 	err1001ConvertArgumentChildTraversalNotFromAnonError errorCode = "E1001_BYTECODE_CHILD_T_NOT_ANON_ERROR"
 
 	// graphTraversal.go errors
@@ -99,24 +99,24 @@ const (
 	err1104TransactionRepeatedCloseError     errorCode = "E1104_TRANSACTION_REPEATED_CLOSE_ERROR"
 )
 
+var localizer *i18n.Localizer
+
+func init() {
+	initializeLocalizer(language.English)
+}
+
 func initializeLocalizer(locale language.Tag) {
-	if localizer != nil {
-		return
-	}
 	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 
 	// Register resource package here for additional languages.
-	_, path, _, _ := runtime.Caller(0)
-	path = filepath.Join(filepath.Dir(path), "resources/error-messages/en.json")
-	bundle.LoadMessageFile(path)
+	langFile := "error-messages/en.json"
+	bundle.LoadMessageFileFS(resources.ErrorMessagesFS, langFile)
+
 	localizer = i18n.NewLocalizer(bundle, locale.String())
 }
 
-var localizer *i18n.Localizer
-
 func newError(errorCode errorCode, args ...interface{}) error {
-	initializeLocalizer(language.English)
 	config := i18n.LocalizeConfig{
 		MessageID: string(errorCode),
 	}

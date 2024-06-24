@@ -31,10 +31,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.netty.util.AttributeMap;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.server.GremlinServer;
 import org.apache.tinkerpop.gremlin.server.Settings;
 import org.apache.tinkerpop.gremlin.server.auth.AuthenticatedUser;
@@ -122,7 +122,7 @@ public class SaslAuthenticationHandler extends AbstractAuthenticationHandler {
                             final AuthenticatedUser user = negotiator.get().getAuthenticatedUser();
                             ctx.channel().attr(StateKey.AUTHENTICATED_USER).set(user);
                             // User name logged with the remote socket address and authenticator classname for audit logging
-                            if (settings.enableAuditLog || settings.authentication.enableAuditLog) {
+                            if (settings.enableAuditLog) {
                                 String address = ctx.channel().remoteAddress().toString();
                                 if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
                                 final String[] authClassParts = authenticator.getClass().toString().split("[.]");
@@ -156,8 +156,7 @@ public class SaslAuthenticationHandler extends AbstractAuthenticationHandler {
                     ctx.writeAndFlush(error);
                 }
             }
-        }
-        else {
+        } else {
             logger.warn("{} only processes RequestMessage instances - received {} - channel closing",
                     this.getClass().getSimpleName(), msg.getClass());
             ctx.close();

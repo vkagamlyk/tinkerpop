@@ -23,18 +23,18 @@ import groovy.lang.GroovyRuntimeException;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.tinkerpop.gremlin.driver.Client;
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
-import org.apache.tinkerpop.gremlin.driver.ser.MessageTextSerializer;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.ser.MessageTextSerializer;
 import org.apache.tinkerpop.gremlin.groovy.engine.GremlinExecutor;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.TimedInterruptTimeoutException;
 import org.apache.tinkerpop.gremlin.jsr223.GremlinScriptEngine;
 import org.apache.tinkerpop.gremlin.jsr223.JavaTranslator;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
+import org.apache.tinkerpop.gremlin.process.traversal.Failure;
 import org.apache.tinkerpop.gremlin.process.traversal.GraphOp;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
@@ -74,6 +74,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -109,6 +110,7 @@ public abstract class AbstractSession implements Session, AutoCloseable {
     protected final GraphManager graphManager;
     protected final ConcurrentMap<String, Session> sessions;
     protected final Set<String> aliasesUsedBySession = new HashSet<>();
+    protected final AtomicBoolean sessionTaskStarted = new AtomicBoolean(false);
 
     /**
      * The reason that a particular session closed. The reason for the close is generally not important as a
@@ -174,6 +176,10 @@ public abstract class AbstractSession implements Session, AutoCloseable {
         final FutureTask<?> sf = (FutureTask) sessionFuture.get();
         if (sf != null && !sf.isDone()) {
             sf.cancel(mayInterruptIfRunning);
+
+            if (!sessionTaskStarted.get()) {
+                sendTimeoutResponseForUncommencedTask();
+            }
         }
     }
 
@@ -204,6 +210,12 @@ public abstract class AbstractSession implements Session, AutoCloseable {
     public GremlinScriptEngine getScriptEngine(final SessionTask sessionTask, final String language) {
         return sessionTask.getGremlinExecutor().getScriptEngineManager().getEngineByName(language);
     }
+
+    /**
+     * Respond to the client with the specific timeout response for this Session implementation.
+     * This is for situations where the Session hasn't started running.
+     */
+    protected abstract void sendTimeoutResponseForUncommencedTask();
 
     @Override
     public void setSessionCancelFuture(final ScheduledFuture<?> f) {
@@ -238,7 +250,7 @@ public abstract class AbstractSession implements Session, AutoCloseable {
                     if (sessionThread != null) {
                         sessionThread.interrupt();
                     } else {
-                        logger.debug("{} is a {} which is not interruptable as the thread running the session has not " +
+                        logger.debug("{} is a {} which cannot be interrupted as the thread running the session has not " +
                                         "been set - please check the implementation if this is not desirable",
                                 sessionId, this.getClass().getSimpleName());
                     }
@@ -278,14 +290,20 @@ public abstract class AbstractSession implements Session, AutoCloseable {
     protected void handleException(final SessionTask sessionTask, final Throwable t) throws SessionException {
         if (t instanceof SessionException) throw (SessionException) t;
 
-        final Optional<Throwable> possibleTemporaryException = determineIfTemporaryException(t);
-        if (possibleTemporaryException.isPresent()) {
-            final Throwable temporaryException = possibleTemporaryException.get();
-            throw new SessionException(temporaryException.getMessage(), t,
-                    ResponseMessage.build(sessionTask.getRequestMessage())
-                            .code(ResponseStatusCode.SERVER_ERROR_TEMPORARY)
-                            .statusMessage(temporaryException.getMessage())
-                            .statusAttributeException(temporaryException).create());
+        final Optional<Throwable> possibleSpecialException = determineIfSpecialException(t);
+        if (possibleSpecialException.isPresent()) {
+            final Throwable special = possibleSpecialException.get();
+            final ResponseMessage.Builder specialResponseMsg = ResponseMessage.build(sessionTask.getRequestMessage()).
+                    statusMessage(special.getMessage()).
+                    statusAttributeException(special);
+            if (special instanceof TemporaryException) {
+                specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_TEMPORARY);
+            } else if (special instanceof Failure) {
+                final Failure failure = (Failure) special;
+                specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_FAIL_STEP).
+                        statusAttribute(Tokens.STATUS_ATTRIBUTE_FAIL_STEP_MESSAGE, failure.format());
+            }
+            throw new SessionException(special.getMessage(), specialResponseMsg.create());
         }
 
         final Throwable root = ExceptionHelper.getRootCause(t);
@@ -373,12 +391,12 @@ public abstract class AbstractSession implements Session, AutoCloseable {
     }
 
     /**
-     * Check if any exception in the chain is TemporaryException then we should respond with the right error code so
-     * that the client knows to retry.
+     * Check if any exception in the chain is {@link TemporaryException} or {@link Failure} then respond with the
+     * right error code so that the client knows to retry.
      */
-    protected Optional<Throwable> determineIfTemporaryException(final Throwable ex) {
+    protected static Optional<Throwable> determineIfSpecialException(final Throwable ex) {
         return Stream.of(ExceptionUtils.getThrowables(ex)).
-                filter(i -> i instanceof TemporaryException).findFirst();
+                filter(i -> i instanceof TemporaryException || i instanceof Failure).findFirst();
     }
 
     /**
@@ -666,6 +684,8 @@ public abstract class AbstractSession implements Session, AutoCloseable {
                 throw new IllegalStateException(String.format(
                         "Bytecode in request is not a recognized graph operation: %s", bytecode.toString()));
             }
+        } else {
+            throw Graph.Exceptions.transactionsNotSupported();
         }
     }
 
@@ -795,12 +815,6 @@ public abstract class AbstractSession implements Session, AutoCloseable {
             String address = ctx.channel().remoteAddress().toString();
             if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
             auditLogger.info("User {} with address {} requested: {}", user.getName(), address, gremlinToExecute);
-        }
-
-        if (settings.authentication.enableAuditLog) {
-            String address = ctx.channel().remoteAddress().toString();
-            if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
-            auditLogger.info("User with address {} requested: {}", address, gremlinToExecute);
         }
     }
 

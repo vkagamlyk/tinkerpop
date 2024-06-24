@@ -25,9 +25,19 @@ class long(int):
     pass
 
 
+class bigint(int):
+    pass
+
+
+class short(int):
+    pass
+
+
 FloatType = float
+ShortType = short
 IntType = int
 LongType = long
+BigIntType = bigint
 TypeType = type
 ListType = list
 DictType = dict
@@ -49,7 +59,7 @@ class SingleByte(int):
     """
     def __new__(cls, b):
         if -128 <= b < 128:
-            int.__new__(cls, b)
+            return int.__new__(cls, b)
         else:
             raise ValueError("value must be between -128 and 127 inclusive")
 
@@ -59,8 +69,8 @@ class SingleChar(str):
     Provides a way to pass a single character via Gremlin.
     """
     def __new__(cls, c):
-        if len(b) == 1:
-            str.__new__(cls, c)
+        if len(c) == 1:
+            return str.__new__(cls, c)
         else:
             raise ValueError("string must contain a single character")
 
@@ -71,7 +81,13 @@ class GremlinType(object):
     """
     def __init__(self, gremlin_type):
         self.gremlin_type = gremlin_type
-        
+
+
+class BigDecimal(object):
+    def __init__(self, scale, unscaled_value):
+        self.scale = scale
+        self.unscaled_value = unscaled_value
+
 
 staticMethods = {}
 staticEnums = {}

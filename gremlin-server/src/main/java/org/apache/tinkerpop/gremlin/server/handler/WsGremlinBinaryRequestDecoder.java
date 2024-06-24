@@ -18,9 +18,9 @@
  */
 package org.apache.tinkerpop.gremlin.server.handler;
 
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.ser.SerializationException;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.ser.SerializationException;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -76,6 +76,7 @@ public class WsGremlinBinaryRequestDecoder extends MessageToMessageDecoder<Binar
             try {
                 objects.add(serializer.deserializeRequest(messageBytes.discardReadBytes()));
             } catch (SerializationException se) {
+                logger.warn("Serialization error while decoding request", se);
                 objects.add(RequestMessage.INVALID);
             }
         } finally {

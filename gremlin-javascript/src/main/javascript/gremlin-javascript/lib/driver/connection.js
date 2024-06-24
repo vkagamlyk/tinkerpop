@@ -28,6 +28,7 @@ const WebSocket = require('ws');
 const util = require('util');
 const utils = require('../utils');
 const serializer = require('../structure/io/graph-serializer');
+const { graphBinaryReader, graphBinaryWriter } = require('../structure/io/binary/GraphBinary');
 const ResultSet = require('./result-set');
 const ResponseError = require('./response-error');
 
@@ -40,6 +41,7 @@ const responseStatusCode = {
 
 const defaultMimeType = 'application/vnd.gremlin-v3.0+json';
 const graphSON2MimeType = 'application/vnd.gremlin-v2.0+json';
+const graphBinaryMimeType = 'application/vnd.graphbinary-v1.0';
 
 const pingIntervalDelay = 60 * 1000;
 const pongTimeoutDelay = 30 * 1000;
@@ -62,10 +64,10 @@ class Connection extends EventEmitter {
    * @param {GraphSONWriter} [options.writer] The writer to use.
    * @param {Authenticator} [options.authenticator] The authentication handler to use.
    * @param {Object} [options.headers] An associative array containing the additional header key/values for the initial request.
+   * @param {Boolean} [options.enableUserAgentOnConnect] Determines if a user agent will be sent during connection handshake. Defaults to: true
    * @param {Boolean} [options.pingEnabled] Setup ping interval. Defaults to: true.
    * @param {Number} [options.pingInterval] Ping request interval in ms if ping enabled. Defaults to: 60000.
    * @param {Number} [options.pongTimeout] Timeout of pong response in ms after sending a ping. Defaults to: 30000.
-   * @param {Boolean} [options.connectOnStartup] Open websocket on startup. Defaults to: true.
    * @constructor
    */
   constructor(url, options) {
@@ -96,14 +98,11 @@ class Connection extends EventEmitter {
     this.isOpen = false;
     this.traversalSource = options.traversalSource || 'g';
     this._authenticator = options.authenticator;
+    this._enableUserAgentOnConnect = options.enableUserAgentOnConnect !== false;
 
     this._pingEnabled = this.options.pingEnabled === false ? false : true;
     this._pingIntervalDelay = this.options.pingInterval || pingIntervalDelay;
     this._pongTimeoutDelay = this.options.pongTimeout || pongTimeoutDelay;
-
-    if (this.options.connectOnStartup !== false) {
-      this.open();
-    }
   }
 
   /**
@@ -119,9 +118,16 @@ class Connection extends EventEmitter {
     }
 
     this.emit('log', 'ws open');
+    let headers = this.options.headers;
+    if (this._enableUserAgentOnConnect) {
+      if (!headers) {
+        headers = [];
+      }
+      headers[utils.getUserAgentHeader()] = utils.getUserAgent();
+    }
 
     this._ws = new WebSocket(this.url, {
-      headers: this.options.headers,
+      headers: headers,
       ca: this.options.ca,
       cert: this.options.cert,
       pfx: this.options.pfx,
@@ -180,7 +186,7 @@ class Connection extends EventEmitter {
           };
 
           const request_buf = this._writer.writeRequest(request);
-          const message = Buffer.concat([this._header_buf, request_buf], this._header_buf.length + request_buf.length);
+          const message = Buffer.concat([this._header_buf, request_buf]);
           this._ws.send(message);
         }),
     );
@@ -211,7 +217,7 @@ class Connection extends EventEmitter {
         };
 
         const request_buf = this._writer.writeRequest(request);
-        const message = Buffer.concat([this._header_buf, request_buf], this._header_buf.length + request_buf.length);
+        const message = Buffer.concat([this._header_buf, request_buf]);
         this._ws.send(message);
       })
       .catch((err) => readableStream.destroy(err));
@@ -220,10 +226,18 @@ class Connection extends EventEmitter {
   }
 
   _getDefaultReader(mimeType) {
+    if (mimeType === graphBinaryMimeType) {
+      return graphBinaryReader;
+    }
+
     return mimeType === graphSON2MimeType ? new serializer.GraphSON2Reader() : new serializer.GraphSONReader();
   }
 
   _getDefaultWriter(mimeType) {
+    if (mimeType === graphBinaryMimeType) {
+      return graphBinaryWriter;
+    }
+
     return mimeType === graphSON2MimeType ? new serializer.GraphSON2Writer() : new serializer.GraphSONWriter();
   }
 
@@ -252,7 +266,7 @@ class Connection extends EventEmitter {
 
   _handleError(err) {
     this.emit('log', `ws error ${err}`);
-    this._cleanupWebsocket();
+    this._cleanupWebsocket(err);
     this.emit('socketError', err);
   }
 
@@ -356,7 +370,7 @@ class Connection extends EventEmitter {
   /**
    * clean websocket context
    */
-  _cleanupWebsocket() {
+  _cleanupWebsocket(err) {
     if (this._pingInterval) {
       clearInterval(this._pingInterval);
     }
@@ -366,6 +380,17 @@ class Connection extends EventEmitter {
     }
     this._pongTimeout = null;
 
+    // Invoke waiting callbacks to complete Promises when closing the websocket
+    Object.keys(this._responseHandlers).forEach((requestId) => {
+      const handler = this._responseHandlers[requestId];
+      const isStreamingResponse = handler.result instanceof Stream.Readable;
+      if (isStreamingResponse) {
+        handler.callback(null);
+      } else {
+        const cause = err ? err : new Error('Connection has been closed.');
+        handler.callback(cause);
+      }
+    });
     this._ws.removeAllListeners();
     this._openPromise = null;
     this._closePromise = null;

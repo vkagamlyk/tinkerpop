@@ -21,8 +21,15 @@ package org.apache.tinkerpop.gremlin.process.traversal.translator;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
-import org.apache.tinkerpop.gremlin.process.traversal.*;
-import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
+import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
+import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.Pick;
+import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
+import org.apache.tinkerpop.gremlin.process.traversal.Script;
+import org.apache.tinkerpop.gremlin.process.traversal.Text;
+import org.apache.tinkerpop.gremlin.process.traversal.TextP;
+import org.apache.tinkerpop.gremlin.process.traversal.Translator;
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.TraversalStrategyProxy;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.OrP;
@@ -30,19 +37,19 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 
 /**
  * Translates Gremlin {@link Bytecode} into a Golang string representation.
@@ -53,9 +60,6 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
     private final String traversalSource;
     private final TypeTranslator typeTranslator;
     private final static  String GO_PACKAGE_NAME = "gremlingo.";
-    private final static Set<String> METHODS_TO_CHECK = new HashSet<>(Arrays.asList(
-            "inject", "withSack", "sample", "with", "constant")
-    );
 
     private GolangTranslator(final String traversalSource, final TypeTranslator typeTranslator) {
         this.traversalSource = traversalSource;
@@ -106,8 +110,6 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
         return StringFactory.translatorString(this);
     }
 
-    ///////
-
     /**
      * Performs standard type translation for the TinkerPop types to Go.
      */
@@ -153,7 +155,15 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
 
         @Override
         protected String getSyntax(final Number o) {
-                return o.toString();
+            if (o instanceof Float || o instanceof Double) {
+                if (NumberHelper.isNaN(o))
+                    return "math.NaN()";
+                else if (NumberHelper.isPositiveInfinity(o))
+                    return "math.Inf(1)";
+                else if (NumberHelper.isNegativeInfinity(o))
+                    return "math.Inf(-11)";
+            }
+            return o.toString();
         }
 
         @Override
@@ -167,7 +177,7 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
         }
 
         @Override
-        protected String getSyntax(final TraversalOptionParent.Pick o) {
+        protected String getSyntax(final Pick o) {
             return GO_PACKAGE_NAME + "Pick." + resolveSymbol(o.toString());
         }
 
@@ -255,8 +265,24 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
                     final String k = keys.next();
                     script.append(SymbolHelper.toGolang(k));
                     script.append(": ");
-                    convertToScript(o.getConfiguration().getProperty(k));
-                    script.append(", ");
+
+                    if (o.getConfiguration().getProperty(k) instanceof List) {
+                        List<Object> list =(List<Object>) o.getConfiguration().getProperty(k);
+                        Iterator iterator = list.iterator();
+                        script.append("[]string{");
+                        while(iterator.hasNext()) {
+                            convertToScript(iterator.next());
+                            if (iterator.hasNext())
+                                script.append(", ");
+                        }
+                        script.append("}");
+                    } else if (o.getConfiguration().getProperty(k) == null) {
+                        script.append("nil");
+                    } else {
+                        convertToScript(o.getConfiguration().getProperty(k));
+                    }
+                    if (keys.hasNext())
+                        script.append(", ");
                 }
                 return script.append("})");
             }
@@ -273,23 +299,9 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
                 script.append(".").append(resolveSymbol(methodName)).append("(");
 
                 for (int i = 0; i < arguments.length; i++) {
-                    if (methodName.equals("times")) {
-                        script.append("int32(");
-                        convertToScript(arguments[i]);
-                        script.append(")");
-                    } else if (METHODS_TO_CHECK.contains(methodName)
-                            && arguments[i] instanceof Integer) {
-                        script.append("int32(");
-                        convertToScript(arguments[i]);
-                        script.append(")");
-                        if (i != arguments.length - 1) {
-                            script.append(", ");
-                        }
-                    } else {
-                        convertToScript(arguments[i]);
-                        if (i != arguments.length - 1) {
-                            script.append(", ");
-                        }
+                    convertToScript(arguments[i]);
+                    if (i != arguments.length - 1) {
+                        script.append(", ");
                     }
                 }
 
@@ -300,8 +312,19 @@ public final class GolangTranslator implements Translator.ScriptTranslator {
 
         @Override
         protected Script produceScript(final P<?> p) {
+
             if (p instanceof TextP) {
-                script.append(GO_PACKAGE_NAME + "TextP.").append(resolveSymbol(p.getBiPredicate().toString())).append("(");
+                // special case the RegexPredicate since it isn't an enum. toString() for the final default will
+                // typically cover implementations (generally worked for Text prior to 3.6.0)
+                final BiPredicate<?, ?> tp = p.getBiPredicate();
+                if (tp instanceof Text.RegexPredicate) {
+                    final String regexToken = ((Text.RegexPredicate) p.getBiPredicate()).isNegate() ? "NotRegex" : "Regex";
+                    script.append(GO_PACKAGE_NAME + "TextP.").append(regexToken).append("(");
+                } else if (tp instanceof Text) {
+                    script.append(GO_PACKAGE_NAME + "TextP.").append(resolveSymbol(p.getBiPredicate().toString())).append("(");
+                } else {
+                    script.append(GO_PACKAGE_NAME + "TextP.").append(resolveSymbol(p.getBiPredicate().toString())).append("(");
+                }
                 convertToScript(p.getValue());
             } else if (p instanceof ConnectiveP) {
                 // ConnectiveP gets some special handling because it's reduced to and(P, P, P) and we want it

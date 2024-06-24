@@ -35,6 +35,7 @@ type ResultSet interface {
 	GetRequestID() string
 	IsEmpty() bool
 	Close()
+	unlockedClose()
 	Channel() chan *Result
 	addResult(result *Result)
 	One() (*Result, bool, error)
@@ -120,6 +121,19 @@ func (channelResultSet *channelResultSet) Close() {
 	}
 }
 
+// Close and remove from the channelResultSet from the container without locking container. Meant for use when calling
+// function already locks the container.
+func (channelResultSet *channelResultSet) unlockedClose() {
+	if !channelResultSet.closed {
+		channelResultSet.channelMutex.Lock()
+		channelResultSet.closed = true
+		delete(channelResultSet.container.internalMap, channelResultSet.requestID)
+		close(channelResultSet.channel)
+		channelResultSet.channelMutex.Unlock()
+		channelResultSet.sendSignal()
+	}
+}
+
 func (channelResultSet *channelResultSet) setAggregateTo(val string) {
 	channelResultSet.aggregateTo = val
 }
@@ -174,7 +188,7 @@ func (channelResultSet *channelResultSet) All() ([]*Result, error) {
 func (channelResultSet *channelResultSet) addResult(r *Result) {
 	channelResultSet.channelMutex.Lock()
 	if r.GetType().Kind() == reflect.Array || r.GetType().Kind() == reflect.Slice {
-		for _, v := range r.result.([]interface{}) {
+		for _, v := range r.Data.([]interface{}) {
 			if reflect.TypeOf(v) == reflect.TypeOf(&Traverser{}) {
 				for i := int64(0); i < (v.(*Traverser)).bulk; i++ {
 					channelResultSet.channel <- &Result{(v.(*Traverser)).value}
@@ -184,7 +198,7 @@ func (channelResultSet *channelResultSet) addResult(r *Result) {
 			}
 		}
 	} else {
-		channelResultSet.channel <- &Result{r.result}
+		channelResultSet.channel <- &Result{r.Data}
 	}
 	channelResultSet.channelMutex.Unlock()
 	channelResultSet.sendSignal()

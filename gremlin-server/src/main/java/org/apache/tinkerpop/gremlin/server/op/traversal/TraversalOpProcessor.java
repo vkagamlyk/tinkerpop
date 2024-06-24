@@ -19,14 +19,16 @@
 package org.apache.tinkerpop.gremlin.server.op.traversal;
 
 import com.codahale.metrics.Timer;
+import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelHandlerContext;
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.jsr223.JavaTranslator;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
+import org.apache.tinkerpop.gremlin.process.traversal.Failure;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.util.BytecodeHelper;
@@ -44,10 +46,8 @@ import org.apache.tinkerpop.gremlin.server.op.OpProcessorException;
 import org.apache.tinkerpop.gremlin.server.util.MetricManager;
 import org.apache.tinkerpop.gremlin.server.util.TraverserIterator;
 import org.apache.tinkerpop.gremlin.structure.Graph;
-import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONMapper;
-import org.apache.tinkerpop.gremlin.structure.io.graphson.GraphSONVersion;
+import org.apache.tinkerpop.gremlin.structure.util.TemporaryException;
 import org.apache.tinkerpop.gremlin.util.function.ThrowingConsumer;
-import org.apache.tinkerpop.shaded.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +75,6 @@ import static com.codahale.metrics.MetricRegistry.name;
 public class TraversalOpProcessor extends AbstractOpProcessor {
     private static final Logger logger = LoggerFactory.getLogger(TraversalOpProcessor.class);
     private static final Logger auditLogger = LoggerFactory.getLogger(GremlinServer.AUDIT_LOGGER_NAME);
-    private static final ObjectMapper mapper = GraphSONMapper.build().version(GraphSONVersion.V2_0).create().createMapper();
     public static final String OP_PROCESSOR_NAME = "traversal";
     public static final Timer traversalOpTimer = MetricManager.INSTANCE.getTimer(name(GremlinServer.class, "op", "traversal"));
 
@@ -131,6 +130,13 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
             throw new OpProcessorException(msg, ResponseMessage.build(message).code(ResponseStatusCode.REQUEST_ERROR_INVALID_REQUEST_ARGUMENTS).statusMessage(msg).create());
         }
 
+        // matches functionality in the UnifiedHandler
+        if (!(message.optionalArgs(Tokens.ARGS_GREMLIN).get() instanceof Bytecode)) {
+            final String msg = String.format("A message with [%s] op code requires a [%s] argument that is of type %s.",
+                    Tokens.OPS_BYTECODE, Tokens.ARGS_GREMLIN, Bytecode.class.getSimpleName());
+            throw new OpProcessorException(msg, ResponseMessage.build(message).code(ResponseStatusCode.REQUEST_ERROR_INVALID_REQUEST_ARGUMENTS).statusMessage(msg).create());
+        }
+
         return validatedAliases(message).get();
     }
 
@@ -155,11 +161,9 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
         final Settings settings = context.getSettings();
         logger.debug("Traversal request {} for in thread {}", msg.getRequestId(), Thread.currentThread().getName());
 
-        // right now the TraversalOpProcessor can take a direct GraphSON representation of Bytecode or directly take
-        // deserialized Bytecode object.
+        // validateTraversalRequest() ensures that this is of type Bytecode
         final Object bytecodeObj = msg.getArgs().get(Tokens.ARGS_GREMLIN);
-        final Bytecode bytecode = bytecodeObj instanceof Bytecode ? (Bytecode) bytecodeObj :
-                mapper.readValue(bytecodeObj.toString(), Bytecode.class);
+        final Bytecode bytecode = (Bytecode) bytecodeObj;
 
         // earlier validation in selection of this op method should free us to cast this without worry
         final Map<String, String> aliases = (Map<String, String>) msg.optionalArgs(Tokens.ARGS_ALIASES).get();
@@ -203,14 +207,10 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
             if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
             auditLogger.info("User {} with address {} requested: {}", user.getName(), address, bytecode);
         }
-        if (settings.authentication.enableAuditLog) {
-            String address = context.getChannelHandlerContext().channel().remoteAddress().toString();
-            if (address.startsWith("/") && address.length() > 1) address = address.substring(1);
-            auditLogger.info("User with address {} requested: {}", address, bytecode);
-        }
 
         final Timer.Context timerContext = traversalOpTimer.time();
         final FutureTask<Void> evalFuture = new FutureTask<>(() -> {
+            context.setStartedResponse();
             final Graph graph = g.getGraph();
 
             try {
@@ -225,14 +225,24 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
                     if (ex instanceof UndeclaredThrowableException)
                         t = t.getCause();
 
-                    // if any exception in the chain is TemporaryException then we should respond with the right error
-                    // code so that the client knows to retry
-                    final Optional<Throwable> possibleTemporaryException = determineIfTemporaryException(ex);
-                    if (possibleTemporaryException.isPresent()) {
-                        context.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.SERVER_ERROR_TEMPORARY)
-                                .statusMessage(possibleTemporaryException.get().getMessage())
-                                .statusAttributeException(possibleTemporaryException.get()).create());
+                    // if any exception in the chain is TemporaryException or Failure then we should respond with the
+                    // right error code so that the client knows to retry
+                    final Optional<Throwable> possibleSpecialException = determineIfSpecialException(ex);
+                    if (possibleSpecialException.isPresent()) {
+                        final Throwable special = possibleSpecialException.get();
+                        final ResponseMessage.Builder specialResponseMsg = ResponseMessage.build(msg).
+                                statusMessage(special.getMessage()).
+                                statusAttributeException(special);
+                        if (special instanceof TemporaryException) {
+                            specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_TEMPORARY);
+                        } else if (special instanceof Failure) {
+                            final Failure failure = (Failure) special;
+                            specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_FAIL_STEP).
+                                    statusAttribute(Tokens.STATUS_ATTRIBUTE_FAIL_STEP_MESSAGE, failure.format());
+                        }
+                        context.writeAndFlush(specialResponseMsg.create());
                     } else if (t instanceof InterruptedException || t instanceof TraversalInterruptedException) {
+                        graphManager.onQueryError(msg, t);
                         final String errorMessage = String.format("A timeout occurred during traversal evaluation of [%s] - consider increasing the limit given to evaluationTimeout", msg);
                         logger.warn(errorMessage);
                         context.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.SERVER_ERROR_TIMEOUT)
@@ -244,21 +254,32 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
                                                              .statusMessage(ex.getMessage())
                                                              .statusAttributeException(ex).create());
                     }
-                    onError(graph, context);
+                    onError(graph, context, ex);
                 }
             } catch (Exception ex) {
-                final Optional<Throwable> possibleTemporaryException = determineIfTemporaryException(ex);
-                if (possibleTemporaryException.isPresent()) {
-                    context.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.SERVER_ERROR_TEMPORARY)
-                            .statusMessage(possibleTemporaryException.get().getMessage())
-                            .statusAttributeException(possibleTemporaryException.get()).create());
+                // if any exception in the chain is TemporaryException or Failure then we should respond with the
+                // right error code so that the client knows to retry
+                final Optional<Throwable> possibleSpecialException = determineIfSpecialException(ex);
+                if (possibleSpecialException.isPresent()) {
+                    final Throwable special = possibleSpecialException.get();
+                    final ResponseMessage.Builder specialResponseMsg = ResponseMessage.build(msg).
+                            statusMessage(special.getMessage()).
+                            statusAttributeException(special);
+                    if (special instanceof TemporaryException) {
+                        specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_TEMPORARY);
+                    } else if (special instanceof Failure) {
+                        final Failure failure = (Failure) special;
+                        specialResponseMsg.code(ResponseStatusCode.SERVER_ERROR_FAIL_STEP).
+                                statusAttribute(Tokens.STATUS_ATTRIBUTE_FAIL_STEP_MESSAGE, failure.format());
+                    }
+                    context.writeAndFlush(specialResponseMsg.create());
                 } else {
                     logger.warn(String.format("Exception processing a Traversal on request [%s].", msg.getRequestId()), ex);
                     context.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.SERVER_ERROR)
                             .statusMessage(ex.getMessage())
                             .statusAttributeException(ex).create());
                 }
-                onError(graph, context);
+                onError(graph, context, ex);
             } finally {
                 timerContext.stop();
             }
@@ -270,7 +291,12 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
             final Future<?> executionFuture = context.getGremlinExecutor().getExecutorService().submit(evalFuture);
             if (seto > 0) {
                 // Schedule a timeout in the thread pool for future execution
-                context.getScheduledExecutorService().schedule(() -> executionFuture.cancel(true), seto, TimeUnit.MILLISECONDS);
+                context.getScheduledExecutorService().schedule(() -> {
+                    executionFuture.cancel(true);
+                    if (!context.getStartedResponse()) {
+                        context.sendTimeoutResponse();
+                    }
+                }, seto, TimeUnit.MILLISECONDS);
             }
         } catch (RejectedExecutionException ree) {
             context.writeAndFlush(ResponseMessage.build(msg).code(ResponseStatusCode.TOO_MANY_REQUESTS)
@@ -279,14 +305,23 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
     }
 
     protected void beforeProcessing(final Graph graph, final Context ctx) {
+      final GraphManager graphManager = ctx.getGraphManager();
+      final RequestMessage msg = ctx.getRequestMessage();
+      graphManager.beforeQueryStart(msg);
         if (graph.features().graph().supportsTransactions() && graph.tx().isOpen()) graph.tx().rollback();
     }
 
-    protected void onError(final Graph graph, final Context ctx) {
+    protected void onError(final Graph graph, final Context ctx, Throwable error) {
+        final GraphManager graphManager = ctx.getGraphManager();
+        final RequestMessage msg = ctx.getRequestMessage();
+        graphManager.onQueryError(msg, error); 
         if (graph.features().graph().supportsTransactions() && graph.tx().isOpen()) graph.tx().rollback();
     }
 
     protected void onTraversalSuccess(final Graph graph, final Context ctx) {
+        final GraphManager graphManager = ctx.getGraphManager();
+        final RequestMessage msg = ctx.getRequestMessage();
+        graphManager.onQuerySuccess(msg);
         if (graph.features().graph().supportsTransactions() && graph.tx().isOpen()) graph.tx().commit();
     }
 
@@ -347,7 +382,7 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
             // Don't keep executor busy if client has already given up; there is no way to catch up if the channel is
             // not active, and hence we should break the loop.
             if (!nettyContext.channel().isActive()) {
-                onError(graph, context);
+                onError(graph, context, new ChannelException("Channel is not active - cannot write any more results"));
                 break;
             }
 
@@ -379,7 +414,7 @@ public class TraversalOpProcessor extends AbstractOpProcessor {
 
                         // exception is handled in makeFrame() - serialization error gets written back to driver
                         // at that point
-                        onError(graph, context);
+                        onError(graph, context, ex);
                         break;
                     }
 

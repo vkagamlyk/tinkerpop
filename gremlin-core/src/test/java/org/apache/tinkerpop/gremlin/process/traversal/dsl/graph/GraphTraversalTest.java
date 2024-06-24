@@ -22,6 +22,10 @@ import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
+import org.apache.tinkerpop.gremlin.structure.T;
+import org.apache.tinkerpop.gremlin.structure.VertexProperty;
+import org.apache.tinkerpop.gremlin.structure.util.empty.EmptyGraph;
+import org.apache.tinkerpop.gremlin.util.tools.CollectionFactory;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +39,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.apache.tinkerpop.gremlin.process.traversal.AnonymousTraversalSource.traversal;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -43,10 +48,41 @@ import static org.junit.Assert.assertEquals;
  */
 public class GraphTraversalTest {
     private static final Logger logger = LoggerFactory.getLogger(GraphTraversalTest.class);
+    private static final GraphTraversalSource g = traversal().withEmbedded(EmptyGraph.instance());
 
     private static Set<String> NO_GRAPH = new HashSet<>(Arrays.asList("asAdmin", "by", "read", "write", "with", "option", "iterate", "to", "from", "profile", "pageRank", "connectedComponent", "peerPressure", "shortestPath", "program", "none"));
     private static Set<String> NO_ANONYMOUS = new HashSet<>(Arrays.asList("start", "__"));
     private static Set<String> IGNORES_BYTECODE = new HashSet<>(Arrays.asList("asAdmin", "read", "write", "iterate"));
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldFailPropertyWithNullVertexId() {
+        g.addV().property(T.id, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldFailPropertyWithNullVertexLabel() {
+        g.addV().property(T.label, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldFailPropertyWithCardinalityNullVertexId() {
+        g.addV().property(VertexProperty.Cardinality.single, T.id, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldFailPropertyWithCardinalityNullVertexLabel() {
+        g.addV().property(VertexProperty.Cardinality.single, T.label, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldFailMergeEWithBadInput() {
+        g.inject(0).mergeE(CollectionFactory.asMap(T.value, 100));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void shouldFailMergeVWithBadInput() {
+        g.inject(0).mergeV(CollectionFactory.asMap(T.value, 100));
+    }
 
     @Test
     public void shouldHaveMethodsOfGraphTraversalOnAnonymousGraphTraversal() {

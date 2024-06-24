@@ -18,6 +18,7 @@
  */
 package org.apache.tinkerpop.gremlin.groovy.jsr223;
 
+import org.apache.tinkerpop.gremlin.process.traversal.translator.GroovyTranslator;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.TranslationStrategy;
 import org.apache.tinkerpop.gremlin.structure.Graph;
@@ -214,6 +215,10 @@ import org.apache.tinkerpop.gremlin.util.TinkerGraphProvider;
         test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.WriteTest",
         method = "*",
         reason = "read and write tests don't translate locally well because of calling iterate() inside read()/write() add a none()")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.step.OrderabilityTest",
+        method = "g_inject_order_with_unknown_type",
+        reason = "GroovyTranslator only supports known Gremlin types")
 public class ParameterizedGroovyTranslatorProvider extends TinkerGraphProvider {
     @Override
     public GraphTraversalSource traversal(final Graph graph) {

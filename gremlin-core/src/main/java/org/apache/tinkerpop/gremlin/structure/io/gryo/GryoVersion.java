@@ -26,15 +26,17 @@ import org.apache.tinkerpop.gremlin.process.computer.util.MapMemory;
 import org.apache.tinkerpop.gremlin.process.remote.traversal.DefaultRemoteTraverser;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.Contains;
+import org.apache.tinkerpop.gremlin.process.traversal.Merge;
 import org.apache.tinkerpop.gremlin.process.traversal.Operator;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
 import org.apache.tinkerpop.gremlin.process.traversal.Path;
+import org.apache.tinkerpop.gremlin.process.traversal.Pick;
 import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
+import org.apache.tinkerpop.gremlin.process.traversal.Text;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
-import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
 import org.apache.tinkerpop.gremlin.process.traversal.step.filter.RangeGlobalStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.FoldStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.map.GroupCountStep;
@@ -321,6 +323,7 @@ public enum GryoVersion {
             add(GryoTypeReg.of(Bytecode.class, 122, new GryoSerializersV3d0.BytecodeSerializer()));
             add(GryoTypeReg.of(P.class, 124, new GryoSerializersV3d0.PSerializer()));
             add(GryoTypeReg.of(TextP.class, 186, new GryoSerializersV3d0.TextPSerializer()));
+            add(GryoTypeReg.of(Text.RegexPredicate.class, 197));                                       // ***LAST ID***
             add(GryoTypeReg.of(Lambda.class, 125, new GryoSerializersV3d0.LambdaSerializer()));
             add(GryoTypeReg.of(Bytecode.Binding.class, 126, new GryoSerializersV3d0.BindingSerializer()));
             add(GryoTypeReg.of(Order.class, 127));
@@ -329,7 +332,8 @@ public enum GryoVersion {
             add(GryoTypeReg.of(Column.class, 132));
             add(GryoTypeReg.of(Pop.class, 133));
             add(GryoTypeReg.of(SackFunctions.Barrier.class, 135));
-            add(GryoTypeReg.of(TraversalOptionParent.Pick.class, 137));
+            add(GryoTypeReg.of(Pick.class, 137));
+            add(GryoTypeReg.of(Merge.class, 196));
             add(GryoTypeReg.of(HashSetSupplier.class, 136, new UtilSerializers.HashSetSupplierSerializer()));
             add(GryoTypeReg.of(MultiComparator.class, 165));
 
@@ -343,7 +347,7 @@ public enum GryoVersion {
             add(GryoTypeReg.of(MatchStep.GreedyMatchAlgorithm.class, 144));
             add(GryoTypeReg.of(AdjacentToIncidentStrategy.class, 145));
             add(GryoTypeReg.of(ByModulatorOptimizationStrategy.class, 191));
-            add(GryoTypeReg.of(ProductiveByStrategy.class, 195, new JavaSerializer())); // ***LAST ID***
+            add(GryoTypeReg.of(ProductiveByStrategy.class, 195, new JavaSerializer()));
             add(GryoTypeReg.of(CountStrategy.class, 155));
             add(GryoTypeReg.of(FilterRankingStrategy.class, 146));
             add(GryoTypeReg.of(IdentityRemovalStrategy.class, 147));
@@ -419,10 +423,10 @@ public enum GryoVersion {
             // placeholder serializers for classes that don't live here in core. this will allow them to be used if
             // present  or ignored if the class isn't available. either way the registration numbers are held as
             // placeholders so that the format stays stable
-            tryAddDynamicType(this, "org.apache.tinkerpop.gremlin.driver.message.RequestMessage",
-                    "org.apache.tinkerpop.gremlin.driver.ser.RequestMessageGryoSerializer", 167);
-            tryAddDynamicType(this, "org.apache.tinkerpop.gremlin.driver.message.ResponseMessage",
-                    "org.apache.tinkerpop.gremlin.driver.ser.ResponseMessageGryoSerializer", 169);
+            tryAddDynamicType(this, "org.apache.tinkerpop.gremlin.util.message.RequestMessage",
+                    "org.apache.tinkerpop.gremlin.util.ser.RequestMessageGryoSerializer", 167);
+            tryAddDynamicType(this, "org.apache.tinkerpop.gremlin.util.message.ResponseMessage",
+                    "org.apache.tinkerpop.gremlin.util.ser.ResponseMessageGryoSerializer", 169);
 
             tryAddDynamicType(this, "org.apache.tinkerpop.gremlin.sparql.process.traversal.strategy.SparqlStrategy",
                     null, 184);
@@ -521,6 +525,7 @@ public enum GryoVersion {
             add(GryoTypeReg.of(Bytecode.class, 122, new GryoSerializersV1d0.BytecodeSerializer()));
             add(GryoTypeReg.of(P.class, 124, new GryoSerializersV1d0.PSerializer()));
             add(GryoTypeReg.of(TextP.class, 186, new GryoSerializersV1d0.TextPSerializer()));
+            add(GryoTypeReg.of(Text.RegexPredicate.class, 197));             // ***LAST ID***
             add(GryoTypeReg.of(Lambda.class, 125, new GryoSerializersV1d0.LambdaSerializer()));
             add(GryoTypeReg.of(Bytecode.Binding.class, 126, new GryoSerializersV1d0.BindingSerializer()));
             add(GryoTypeReg.of(Order.class, 127));
@@ -529,7 +534,8 @@ public enum GryoVersion {
             add(GryoTypeReg.of(Column.class, 132));
             add(GryoTypeReg.of(Pop.class, 133));
             add(GryoTypeReg.of(SackFunctions.Barrier.class, 135));
-            add(GryoTypeReg.of(TraversalOptionParent.Pick.class, 137));
+            add(GryoTypeReg.of(Pick.class, 137));
+            add(GryoTypeReg.of(Merge.class, 196));
             add(GryoTypeReg.of(HashSetSupplier.class, 136, new UtilSerializers.HashSetSupplierSerializer()));
             add(GryoTypeReg.of(MultiComparator.class, 165));
 
@@ -586,7 +592,7 @@ public enum GryoVersion {
             add(GryoTypeReg.of(MatchStep.GreedyMatchAlgorithm.class, 144));
             add(GryoTypeReg.of(AdjacentToIncidentStrategy.class, 145));
             add(GryoTypeReg.of(ByModulatorOptimizationStrategy.class, 191));
-            add(GryoTypeReg.of(ProductiveByStrategy.class, 195, new JavaSerializer())); // ***LAST ID***
+            add(GryoTypeReg.of(ProductiveByStrategy.class, 195, new JavaSerializer()));
             add(GryoTypeReg.of(CountStrategy.class, 155));
             add(GryoTypeReg.of(FilterRankingStrategy.class, 146));
             add(GryoTypeReg.of(IdentityRemovalStrategy.class, 147));

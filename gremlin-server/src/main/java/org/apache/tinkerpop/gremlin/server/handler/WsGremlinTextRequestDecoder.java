@@ -18,10 +18,10 @@
  */
 package org.apache.tinkerpop.gremlin.server.handler;
 
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.ser.MessageTextSerializer;
-import org.apache.tinkerpop.gremlin.driver.ser.SerializationException;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.ser.MessageTextSerializer;
+import org.apache.tinkerpop.gremlin.util.ser.SerializationException;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -63,6 +63,7 @@ public class WsGremlinTextRequestDecoder extends MessageToMessageDecoder<TextWeb
 
             objects.add(serializer.deserializeRequest(frame.text()));
         } catch (SerializationException se) {
+            logger.warn("Serialization error while decoding request", se);
             objects.add(RequestMessage.INVALID);
         }
     }

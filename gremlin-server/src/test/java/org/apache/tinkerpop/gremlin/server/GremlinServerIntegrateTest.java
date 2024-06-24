@@ -18,45 +18,59 @@
  */
 package org.apache.tinkerpop.gremlin.server;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.util.AttributeKey;
+import nl.altindag.log.LogCaptor;
 import org.apache.commons.configuration2.BaseConfiguration;
 import org.apache.commons.configuration2.Configuration;
+import org.apache.tinkerpop.gremlin.server.channel.UnifiedChannelizer;
+import org.apache.tinkerpop.gremlin.server.channel.WebSocketChannelizer;
 import org.apache.tinkerpop.gremlin.util.ExceptionHelper;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.apache.tinkerpop.gremlin.TestHelper;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
 import org.apache.tinkerpop.gremlin.driver.Result;
 import org.apache.tinkerpop.gremlin.driver.ResultSet;
-import org.apache.tinkerpop.gremlin.driver.Tokens;
+import org.apache.tinkerpop.gremlin.util.Tokens;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.driver.remote.DriverRemoteConnection;
-import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
+import org.apache.tinkerpop.gremlin.util.ser.Serializers;
 import org.apache.tinkerpop.gremlin.driver.simple.SimpleClient;
+import org.apache.tinkerpop.gremlin.driver.UserAgent;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.GremlinGroovyScriptEngine;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin;
 import org.apache.tinkerpop.gremlin.groovy.jsr223.customizer.SimpleSandboxExtension;
 import org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin;
+import org.apache.tinkerpop.gremlin.server.handler.OpSelectorHandler;
 import org.apache.tinkerpop.gremlin.server.handler.UnifiedHandler;
 import org.apache.tinkerpop.gremlin.structure.RemoteGraph;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__;
-import org.apache.tinkerpop.gremlin.server.handler.OpSelectorHandler;
 import org.apache.tinkerpop.gremlin.server.op.AbstractEvalOpProcessor;
 import org.apache.tinkerpop.gremlin.server.op.standard.StandardOpProcessor;
+import org.apache.tinkerpop.gremlin.server.channel.TestChannelizer;
+import org.apache.tinkerpop.gremlin.server.channel.UnifiedChannelizer;
+import org.apache.tinkerpop.gremlin.server.channel.UnifiedTestChannelizer;
+import org.apache.tinkerpop.gremlin.server.channel.WebSocketChannelizer;
+import org.apache.tinkerpop.gremlin.server.channel.WebSocketTestChannelizer;
+import org.apache.tinkerpop.gremlin.server.handler.WsUserAgentHandler;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.apache.tinkerpop.gremlin.util.Log4jRecordingAppender;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
+import org.apache.tinkerpop.gremlin.util.ExceptionHelper;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.slf4j.LoggerFactory;
@@ -68,6 +82,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,7 +93,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.tinkerpop.gremlin.driver.Tokens.ARGS_EVAL_TIMEOUT;
+import static org.apache.tinkerpop.gremlin.util.Tokens.ARGS_EVAL_TIMEOUT;
 import static org.apache.tinkerpop.gremlin.groovy.jsr223.GroovyCompilerGremlinPlugin.Compilation.COMPILE_STATIC;
 import static org.apache.tinkerpop.gremlin.process.remote.RemoteConnection.GREMLIN_REMOTE;
 import static org.apache.tinkerpop.gremlin.process.remote.RemoteConnection.GREMLIN_REMOTE_CONNECTION_CLASS;
@@ -103,7 +121,6 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
     private Level previousLogLevel;
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(GremlinServerIntegrateTest.class);
 
-    private Log4jRecordingAppender recordingAppender = null;
     private final Supplier<Graph> graphGetter = () -> server.getServerGremlinExecutor().getGraphManager().getGraph("graph");
     private final Configuration conf = new BaseConfiguration() {{
         setProperty(Graph.GRAPH, RemoteGraph.class.getName());
@@ -113,37 +130,50 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
         setProperty("clusterConfiguration.port", TestClientFactory.PORT);
         setProperty("clusterConfiguration.hosts", "localhost");
     }};
+    private static final int POOL_SIZE_FOR_TIMEOUT_TESTS = 1;
+
+    private static LogCaptor logCaptor;
+
+    @BeforeClass
+    public static void setupLogCaptor() {
+        logCaptor = LogCaptor.forRoot();
+    }
+
+    @AfterClass
+    public static void tearDownAfterClass() {
+        logCaptor.close();
+    }
 
     @Before
     public void setupForEachTest() {
-        recordingAppender = new Log4jRecordingAppender();
-        final Logger rootLogger = Logger.getRootLogger();
 
         if (name.getMethodName().equals("shouldPingChannelIfClientDies") ||
-                name.getMethodName().equals("shouldCloseChannelIfClientDoesntRespond")) {
-            final org.apache.log4j.Logger opSelectorHandlerLogger = org.apache.log4j.Logger.getLogger(OpSelectorHandler.class);
-            final org.apache.log4j.Logger unifiedHandlerLogger = org.apache.log4j.Logger.getLogger(UnifiedHandler.class);
+                name.getMethodName().equals("shouldCloseChannelIfClientDoesntRespond") ||
+                name.getMethodName().equals("shouldCaptureUserAgentFromClient")) {
+            final Logger opSelectorHandlerLogger = (Logger) LoggerFactory.getLogger(OpSelectorHandler.class);
+            final Logger unifiedHandlerLogger = (Logger) LoggerFactory.getLogger(UnifiedHandler.class);
+            final Logger wsUserAgentHandlerLogger = (Logger) LoggerFactory.getLogger(WsUserAgentHandler.class);
             previousLogLevel = opSelectorHandlerLogger.getLevel();
             opSelectorHandlerLogger.setLevel(Level.INFO);
             unifiedHandlerLogger.setLevel(Level.INFO);
+            wsUserAgentHandlerLogger.setLevel(Level.DEBUG);
         }
 
-        rootLogger.addAppender(recordingAppender);
+        logCaptor.clearLogs();
     }
 
     @After
     public void teardownForEachTest() {
-        final Logger rootLogger = Logger.getRootLogger();
-
-        if (name.getMethodName().equals("shouldPingChannelIfClientDies")||
-                name.getMethodName().equals("shouldCloseChannelIfClientDoesntRespond")) {
-            final org.apache.log4j.Logger opSelectorHandlerLogger = org.apache.log4j.Logger.getLogger(OpSelectorHandler.class);
+        if (name.getMethodName().equals("shouldPingChannelIfClientDies") ||
+                name.getMethodName().equals("shouldCloseChannelIfClientDoesntRespond") ||
+                name.getMethodName().equals("shouldCaptureUserAgentFromClient")) {
+            final Logger opSelectorHandlerLogger = (Logger) LoggerFactory.getLogger(OpSelectorHandler.class);
             opSelectorHandlerLogger.setLevel(previousLogLevel);
-            final org.apache.log4j.Logger unifiedHandlerLogger = org.apache.log4j.Logger.getLogger(UnifiedHandler.class);
+            final Logger unifiedHandlerLogger = (Logger) LoggerFactory.getLogger(UnifiedHandler.class);
             unifiedHandlerLogger.setLevel(previousLogLevel);
+            final Logger wsUserAgentHandlerLogger = (Logger) LoggerFactory.getLogger(WsUserAgentHandler.class);
+            wsUserAgentHandlerLogger.setLevel(previousLogLevel);
         }
-
-        rootLogger.removeAppender(recordingAppender);
     }
 
     /**
@@ -223,6 +253,31 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
                 settings.gremlinPool = 1;
                 settings.maxWorkQueueSize = 1;
                 break;
+            case "shouldRespondToTimeoutCancelledWsRequest":
+            case "shouldRespondToTimeoutCancelledSessionRequest":
+                tryIncludeNeo4jGraph(settings);
+                settings.evaluationTimeout = 5000;
+                settings.gremlinPool = POOL_SIZE_FOR_TIMEOUT_TESTS;
+                settings.channelizer = WebSocketChannelizer.class.getName();
+                break;
+            case "shouldRespondToTimeoutCancelledSingleTaskUnifiedRequest":
+                settings.evaluationTimeout = 5000;
+                settings.gremlinPool = POOL_SIZE_FOR_TIMEOUT_TESTS;
+                settings.channelizer = UnifiedChannelizer.class.getName();
+                break;
+            case "shouldRespondToTimeoutCancelledMultiTaskUnifiedRequest":
+                tryIncludeNeo4jGraph(settings);
+                settings.evaluationTimeout = 30000;
+                settings.sessionLifetimeTimeout = 5000; // This needs to be shorter because of the delay in scheduling session task.
+                settings.gremlinPool = POOL_SIZE_FOR_TIMEOUT_TESTS;
+                settings.channelizer = UnifiedChannelizer.class.getName();
+                break;
+            case "shouldStoreUserAgentInContextWebSocket":
+                settings.channelizer = WebSocketTestChannelizer.class.getName();
+                break;
+            case "shouldStoreUserAgentInContextUnified":
+                settings.channelizer = UnifiedTestChannelizer.class.getName();
+                break;
             default:
                 break;
         }
@@ -255,6 +310,56 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
         properties.put("ScriptBaseClass", BaseScriptForTesting.class.getName());
         scriptEngineConf.put("compilerConfigurationOptions", properties);
         return scriptEngineConf;
+    }
+
+    @Test
+    public void shouldCaptureUserAgentFromClient() {
+        final Cluster cluster = TestClientFactory.build().enableUserAgentOnConnect(true).create();
+        final Client client = cluster.connect();
+        client.submit("test");
+
+        assertThat(logCaptor.getLogs().stream().anyMatch(m -> m.matches(
+                ".*New Connection on channel .* with user agent.*$")), is(true));
+
+        cluster.close();
+    }
+
+    @Test
+    public void shouldStoreUserAgentInContextWebSocket() throws InterruptedException {
+        shouldStoreUserAgentInContext();
+    }
+
+    @Test
+    public void shouldStoreUserAgentInContextUnified() throws InterruptedException {
+        shouldStoreUserAgentInContext();
+    }
+
+    private void shouldStoreUserAgentInContext() throws InterruptedException {
+        if(server.getChannelizer() instanceof TestChannelizer) {
+            assertNull(getUserAgentIfAvailable());
+            final Cluster cluster = TestClientFactory.build().enableUserAgentOnConnect(true).create();
+            final Client client = cluster.connect();
+
+            client.submit("test");
+            assertEquals(UserAgent.USER_AGENT, getUserAgentIfAvailable());
+            client.submit("test");
+            assertEquals(UserAgent.USER_AGENT, getUserAgentIfAvailable());
+            client.close();
+            cluster.close();
+        }
+    }
+
+    private String getUserAgentIfAvailable() {
+        final AttributeKey<String> userAgentAttrKey = AttributeKey.valueOf(UserAgent.USER_AGENT_HEADER_NAME);
+        if(!(server.getChannelizer() instanceof TestChannelizer)) {
+            return null;
+        }
+        final TestChannelizer channelizer = (TestChannelizer) server.getChannelizer();
+        final ChannelHandlerContext ctx = channelizer.getMostRecentChannelHandlerContext();
+        if(ctx == null || !ctx.channel().hasAttr(userAgentAttrKey)) {
+            return null;
+        }
+        return channelizer.getMostRecentChannelHandlerContext().channel().attr(userAgentAttrKey).get();
     }
 
     @Test
@@ -331,7 +436,8 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
         // will autoclose the channel
         Thread.sleep(2000);
 
-        assertThat(recordingAppender.logContainsAny(".*Closing channel - client is disconnected after idle period of .*$"), is(true));
+        assertThat(logCaptor.getLogs().stream().anyMatch(m -> m.matches(
+                ".*Closing channel - client is disconnected after idle period of .*$")), is(true));
 
         client.close();
     }
@@ -352,7 +458,8 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
         // stop the server to be sure that logs flush
         stopServer();
 
-        assertThat(recordingAppender.logContainsAny(".*Checking channel - sending ping to client after idle period of .*$"), is(true));
+        assertThat(logCaptor.getLogs().stream().anyMatch(m -> m.matches(
+                ".*Checking channel - sending ping to client after idle period of .*$")), is(true));
     }
 
     @Test
@@ -567,7 +674,8 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
             assertThat(faulty.get(), is(false));
             assertThat(expected.get(), is(true));
 
-            assertThat(recordingAppender.getMessages().stream().anyMatch(m -> m.contains("Pausing response writing as writeBufferHighWaterMark exceeded on")), is(true));
+            assertThat(logCaptor.getLogs().stream().anyMatch(m -> m.contains(
+                    "Pausing response writing as writeBufferHighWaterMark exceeded on")), is(true));
         } catch (Exception ex) {
             fail("Shouldn't have tossed an exception");
         } finally {
@@ -872,25 +980,6 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
         }
     }
 
-    @Test
-    public void shouldReceiveFailureOnBadGryoSerialization() throws Exception {
-        final Cluster cluster = TestClientFactory.build().serializer(Serializers.GRYO_V1D0).create();
-        final Client client = cluster.connect();
-
-        try {
-            client.submit("java.awt.Color.RED").all().join();
-            fail("Should throw an exception.");
-        } catch (RuntimeException re) {
-            final Throwable root = ExceptionHelper.getRootCause(re);
-            assertThat(root.getMessage(), CoreMatchers.startsWith("Error during serialization: Class is not registered: java.awt.Color"));
-
-            // validate that we can still send messages to the server
-            assertEquals(2, client.submit("1+1").all().join().get(0).getInt());
-        } finally {
-            cluster.close();
-        }
-    }
-
     @SuppressWarnings("ThrowableResultOfMethodCallIgnored")
     @Test
     public void shouldBlockRequestWhenTooBig() throws Exception {
@@ -1085,6 +1174,153 @@ public class GremlinServerIntegrateTest extends AbstractGremlinServerIntegration
             assertEquals(ResponseStatusCode.SERVER_ERROR_TEMPORARY, ((ResponseException) t).getResponseStatusCode());
         } finally {
             cluster.close();
+        }
+    }
+
+    /**
+     * Reproducer for TINKERPOP-2769 with request sent to WebSocketChannelizer.
+     */
+    @Test(timeout = 180000) // Add timeout in case the test hangs.
+    public void shouldRespondToTimeoutCancelledWsRequest() throws Exception {
+        final GraphTraversalSource g = traversal().withRemote(conf);
+        runTimeoutTest(g);
+        g.close();
+    }
+
+    /**
+     * Reproducer for TINKERPOP-2769 with request having a Session ID sent to WebSocketChannelizer.
+     */
+    @Test(timeout = 180000) // Add timeout in case the test hangs.
+    public void shouldRespondToTimeoutCancelledSessionRequest() throws Exception {
+        // Don't test with UnifiedChannelizer since we only want to test the case where a task is cancelled before
+        // running which is handled by shouldRespondToTimeoutCancelledMultiTaskUnifiedRequest.
+        assumeThat("Must use OpProcessor", isUsingUnifiedChannelizer(), is(false));
+        assumeNeo4jIsPresent();
+
+        final Cluster cluster = TestClientFactory.build().create();
+        final GraphTraversalSource g = traversal().withRemote(DriverRemoteConnection.using(cluster));
+        final GraphTraversalSource gtx = g.tx().begin();
+
+        runTimeoutTest(gtx);
+
+        gtx.tx().commit();
+        cluster.close();
+    }
+
+    /**
+     * Reproducer for TINKERPOP-2769 with request sent to UnifiedChannelizer.
+     */
+    @Test(timeout = 180000) // Add timeout in case the test hangs.
+    public void shouldRespondToTimeoutCancelledSingleTaskUnifiedRequest() throws Exception {
+        final GraphTraversalSource g = traversal().withRemote(conf);
+        runTimeoutTest(g);
+        g.close();
+    }
+
+    /**
+     * Reproducer for TINKERPOP-2769 with request having a Session ID sent to UnifiedChannelizer.
+     */
+    @Test(timeout = 180000) // Add timeout in case the test hangs.
+    public void shouldRespondToTimeoutCancelledMultiTaskUnifiedRequest() throws Exception {
+        assumeNeo4jIsPresent();
+        final Cluster cluster = TestClientFactory.build().create();
+        final GraphTraversalSource g = traversal().withRemote(DriverRemoteConnection.using(cluster));
+        final GraphTraversalSource gtx = g.tx().begin();
+
+        g.addV("person").as("p").addE("self").to("p").iterate();
+
+        // Number of threads/tasks must be larger than the size of the gremlinPool set in overrideSettings().
+        final ScheduledExecutorService threadPool = Executors.newScheduledThreadPool(2);
+        // Use a request without session to fill the queue since we want to test cancel on first session request.
+        final Future<?> firstResult = threadPool.submit(() -> g.V().repeat(__.out()).until(__.outE().count().is(0)).iterate());
+        // Delay this request slightly as we want to test that the MultiTaskSession is properly returning an error when it is cancelled.
+        final Future<?> secondResult = threadPool.schedule(() -> gtx.V().repeat(__.out()).until(__.outE().count().is(0)).iterate(), 5000, TimeUnit.MILLISECONDS);
+
+        try {
+            firstResult.get();
+            fail("This traversal should have timed out");
+        } catch (Exception ex) {
+            final Throwable t = ex.getCause().getCause(); // Get the nested ResponseException.
+            assertThat(t, instanceOf(ResponseException.class));
+            assertEquals(ResponseStatusCode.SERVER_ERROR_TIMEOUT, ((ResponseException) t).getResponseStatusCode());
+        }
+
+        try {
+            secondResult.get();
+            fail("This traversal should have timed out");
+        } catch (Exception ex) {
+            final Throwable t = ex.getCause().getCause(); // Get the nested ResponseException.
+            assertThat(t, instanceOf(ResponseException.class));
+            assertEquals(ResponseStatusCode.SERVER_ERROR_TIMEOUT, ((ResponseException) t).getResponseStatusCode());
+        }
+
+        threadPool.shutdown();
+        gtx.tx().rollback();
+        cluster.close();
+    }
+
+    private void runTimeoutTest(GraphTraversalSource g) throws Exception {
+        // make a graph with a cycle in it to force a long run traversal
+        g.addV("person").as("p").addE("self").to("p").iterate();
+
+        // Number of threads/tasks must be larger than the size of the gremlinPool set in overrideSettings().
+        final int numTasksNeededToOverloadPool = POOL_SIZE_FOR_TIMEOUT_TESTS + 2;
+        final ExecutorService threadPool = Executors.newFixedThreadPool(numTasksNeededToOverloadPool);
+        // test "unending" traversals
+        final List<Future<?>> results = new ArrayList<>();
+        for (int i = 0; i < numTasksNeededToOverloadPool; i++) {
+            results.add(threadPool.submit(() -> g.V().repeat(__.out()).until(__.outE().count().is(0)).iterate()));
+        }
+
+        for (final Future<?> result : results) {
+            try {
+                result.get();
+                fail("This traversal should have timed out");
+            } catch (Exception ex) {
+                final Throwable t = ex.getCause().getCause(); // Get the nested ResponseException.
+                assertThat(t, instanceOf(ResponseException.class));
+                assertEquals(ResponseStatusCode.SERVER_ERROR_TIMEOUT, ((ResponseException) t).getResponseStatusCode());
+            }
+        }
+
+        threadPool.shutdown();
+    }
+
+    /**
+     * Reproducer for TINKERPOP-2765 when run using the UnifiedChannelizer.
+     */
+    @Test
+    public void shouldHandleMultipleLambdaTranslationsInParallel() throws Exception {
+        final GraphTraversalSource g = traversal().withRemote(conf);
+
+        final CompletableFuture<Traversal<Object, Object>> firstRes = g.with("evaluationTimeout", 90000L).inject(1).sideEffect(Lambda.consumer("Thread.sleep(100)")).promise(Traversal::iterate);
+        final CompletableFuture<Traversal<Object, Object>> secondRes = g.with("evaluationTimeout", 90000L).inject(1).sideEffect(Lambda.consumer("Thread.sleep(100)")).promise(Traversal::iterate);
+        final CompletableFuture<Traversal<Object, Object>> thirdRes = g.with("evaluationTimeout", 90000L).inject(1).sideEffect(Lambda.consumer("Thread.sleep(100)")).promise(Traversal::iterate);
+
+        try {
+            firstRes.get();
+            secondRes.get();
+            thirdRes.get();
+        } catch (Exception ce) {
+            fail("An exception was not expected because the traversals are all valid.");
+        } finally {
+            g.close();
+        }
+    }
+
+    @Test
+    public void shouldGenerateFailureErrorResponseStatusCode() throws Exception {
+        final Cluster cluster = TestClientFactory.build().create();
+        final Client client = cluster.connect();
+
+        try {
+            client.submit("g.inject(0).fail('make it stop')").all().get();
+            fail("Should have tanked since we used fail() step");
+        } catch (Exception ex) {
+            final Throwable t = ex.getCause();
+            assertThat(t, instanceOf(ResponseException.class));
+            assertEquals("make it stop", t.getMessage());
+            assertEquals(ResponseStatusCode.SERVER_ERROR_FAIL_STEP, ((ResponseException) t).getResponseStatusCode());
         }
     }
 }

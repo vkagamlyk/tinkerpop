@@ -94,17 +94,29 @@ class GraphTraversalSource {
    * @returns {GraphTraversalSource}
    */
   withComputer(graphComputer, workers, result, persist, vertices, edges, configuration) {
-    return this.withStrategies(
-      new VertexProgramStrategy({
-        graphComputer: graphComputer,
-        workers: workers,
-        result: result,
-        persist: persist,
-        vertices: vertices,
-        edges: edges,
-        configuration: configuration,
-      }),
-    );
+    const m = {};
+    if (graphComputer !== undefined) {
+      m.graphComputer = graphComputer;
+    }
+    if (workers !== undefined) {
+      m.workers = workers;
+    }
+    if (result !== undefined) {
+      m.result = result;
+    }
+    if (persist !== undefined) {
+      m.graphComputer = persist;
+    }
+    if (vertices !== undefined) {
+      m.vertices = vertices;
+    }
+    if (edges !== undefined) {
+      m.edges = edges;
+    }
+    if (configuration !== undefined) {
+      m.configuration = configuration;
+    }
+    return this.withStrategies(new VertexProgramStrategy(m));
   }
 
   /**
@@ -267,12 +279,32 @@ class GraphTraversalSource {
   }
 
   /**
+   * mergeV GraphTraversalSource step method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  mergeE(...args) {
+    const b = new Bytecode(this.bytecode).addStep('mergeE', args);
+    return new this.graphTraversalClass(this.graph, new TraversalStrategies(this.traversalStrategies), b);
+  }
+
+  /**
    * addV GraphTraversalSource step method.
    * @param {...Object} args
    * @returns {GraphTraversal}
    */
   addV(...args) {
     const b = new Bytecode(this.bytecode).addStep('addV', args);
+    return new this.graphTraversalClass(this.graph, new TraversalStrategies(this.traversalStrategies), b);
+  }
+
+  /**
+   * mergeV GraphTraversalSource step method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  mergeV(...args) {
+    const b = new Bytecode(this.bytecode).addStep('mergeV', args);
     return new this.graphTraversalClass(this.graph, new TraversalStrategies(this.traversalStrategies), b);
   }
 
@@ -293,6 +325,16 @@ class GraphTraversalSource {
    */
   io(...args) {
     const b = new Bytecode(this.bytecode).addStep('io', args);
+    return new this.graphTraversalClass(this.graph, new TraversalStrategies(this.traversalStrategies), b);
+  }
+
+  /**
+   * call GraphTraversalSource step method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  call(...args) {
+    const b = new Bytecode(this.bytecode).addStep('call', args);
     return new this.graphTraversalClass(this.graph, new TraversalStrategies(this.traversalStrategies), b);
   }
 }
@@ -319,6 +361,16 @@ class GraphTraversal extends Traversal {
    */
   V(...args) {
     this.bytecode.addStep('V', args);
+    return this;
+  }
+
+  /**
+   * Graph traversal E method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  E(...args) {
+    this.bytecode.addStep('E', args);
     return this;
   }
 
@@ -433,6 +485,15 @@ class GraphTraversal extends Traversal {
   }
 
   /**
+   * Graph traversal call method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  call(...args) {
+    this.bytecode.addStep('call', args);
+    return this;
+  }
+  /**
    * Graph traversal cap method.
    * @param {...Object} args
    * @returns {GraphTraversal}
@@ -533,6 +594,15 @@ class GraphTraversal extends Traversal {
   }
 
   /**
+   * Graph traversal element method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  element(...args) {
+    this.bytecode.addStep('element', args);
+    return this;
+  }
+  /**
    * Graph traversal elementMap method.
    * @param {...Object} args
    * @returns {GraphTraversal}
@@ -549,6 +619,16 @@ class GraphTraversal extends Traversal {
    */
   emit(...args) {
     this.bytecode.addStep('emit', args);
+    return this;
+  }
+
+  /**
+   * Graph traversal fa method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  fail(...args) {
+    this.bytecode.addStep('fail', args);
     return this;
   }
 
@@ -849,6 +929,26 @@ class GraphTraversal extends Traversal {
    */
   mean(...args) {
     this.bytecode.addStep('mean', args);
+    return this;
+  }
+
+  /**
+   * Graph traversal mergeE method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  mergeE(...args) {
+    this.bytecode.addStep('mergeE', args);
+    return this;
+  }
+
+  /**
+   * Graph traversal mergeV method.
+   * @param {...Object} args
+   * @returns {GraphTraversal}
+   */
+  mergeV(...args) {
+    this.bytecode.addStep('mergeV', args);
     return this;
   }
 
@@ -1353,6 +1453,7 @@ function callOnEmptyTraversal(fnName, args) {
  * @type {Object}
  */
 const statics = {
+  E: (...args) => callOnEmptyTraversal('E', args),
   V: (...args) => callOnEmptyTraversal('V', args),
   addE: (...args) => callOnEmptyTraversal('addE', args),
   addV: (...args) => callOnEmptyTraversal('addV', args),
@@ -1364,6 +1465,7 @@ const statics = {
   bothE: (...args) => callOnEmptyTraversal('bothE', args),
   bothV: (...args) => callOnEmptyTraversal('bothV', args),
   branch: (...args) => callOnEmptyTraversal('branch', args),
+  call: (...args) => callOnEmptyTraversal('call', args),
   cap: (...args) => callOnEmptyTraversal('cap', args),
   choose: (...args) => callOnEmptyTraversal('choose', args),
   coalesce: (...args) => callOnEmptyTraversal('coalesce', args),
@@ -1373,8 +1475,10 @@ const statics = {
   cyclicPath: (...args) => callOnEmptyTraversal('cyclicPath', args),
   dedup: (...args) => callOnEmptyTraversal('dedup', args),
   drop: (...args) => callOnEmptyTraversal('drop', args),
+  element: (...args) => callOnEmptyTraversal('element', args),
   elementMap: (...args) => callOnEmptyTraversal('elementMap', args),
   emit: (...args) => callOnEmptyTraversal('emit', args),
+  fail: (...args) => callOnEmptyTraversal('fail', args),
   filter: (...args) => callOnEmptyTraversal('filter', args),
   flatMap: (...args) => callOnEmptyTraversal('flatMap', args),
   fold: (...args) => callOnEmptyTraversal('fold', args),
@@ -1404,6 +1508,8 @@ const statics = {
   math: (...args) => callOnEmptyTraversal('math', args),
   max: (...args) => callOnEmptyTraversal('max', args),
   mean: (...args) => callOnEmptyTraversal('mean', args),
+  mergeE: (...args) => callOnEmptyTraversal('mergeE', args),
+  mergeV: (...args) => callOnEmptyTraversal('mergeV', args),
   min: (...args) => callOnEmptyTraversal('min', args),
   not: (...args) => callOnEmptyTraversal('not', args),
   optional: (...args) => callOnEmptyTraversal('optional', args),

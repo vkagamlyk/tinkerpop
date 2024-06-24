@@ -139,6 +139,18 @@ on `gremlin-python` then the tag should be `3.6.0.1-python`.
 
 Please refrain from creating arbitrary tags, as they produce permanent clutter.
 
+[[runtimes]]
+== Runtimes
+
+Each programming language has a runtime that TinkerPop supports. In general, TinkerPop will attempt to support the
+current LTS version for a particular major version for the lifetime of its minor and patch releases. Part of each
+major release cycle, should include some analysis of the current runtime supported.
+
+* Java - Typically, TinkerPop will find itself bound to the version held by its major dependencies like Apache Spark.
+* Javascript - Consult link:https://github.com/nodejs/Release[nodejs/Release] for the current active LTS of node and link:https://nodejs.org/en/download/releases/[here] for npm compatibility.
+* .NET - Consult link:https://dotnet.microsoft.com/platform/support/policy/dotnet-core[.NET Release Lifecycle] for LTS status.
+* Python - Consult link:https://www.python.org/downloads/[Python.org] for the current LTS status.
+
 == Issue Tracker Conventions
 
 TinkerPop uses Apache JIRA as its link:https://issues.apache.org/jira/browse/TINKERPOP[issue tracker].  JIRA is a
@@ -162,7 +174,8 @@ this property set.
 affect users or providers.  This label is important when organizing release notes.
 ** The "deprecation" label which is assigned to an issue that includes changes to deprecate a portion of the API.
 * The "affects/fix version(s)" fields should be appropriately set, where the "fix version" implies the version on
-which that particular issue will completed. This is a field usually only set by committers.
+which that particular issue will completed. This is a field usually only set by committers and should only be set
+when the issue is being closed with a completed disposition (e.g. "Done", "Fixed", etc.).
 * The "priority" field can be arbitrarily applied with one exception.  The "trivial" option should be reserved for
 tasks that are "easy" for a potential new contributor to jump into and do not have significant impact to urgently
 required improvements.
@@ -206,6 +219,7 @@ call out this fact.
 The JIRA issues that track removal of deprecated methods should be periodically evaluated to determine if it is
 prudent to schedule them into a release.
 
+[[developing-tests]]
 == Developing Tests
 
 TinkerPop has a wide variety of test types that help validate its internal code as well as external provider code.
@@ -232,9 +246,10 @@ environments without a `GraphProvider` being initialized by a suite. These types
 `Check` instead. Please see link:https://github.com/apache/tinkerpop/blob/e32a4187e4f25e290aabe14007f9087c48a06521/neo4j-gremlin/src/test/java/org/apache/tinkerpop/gremlin/neo4j/structure/NativeNeo4jStructureCheck.java[NativeNeo4jStructureCheck]
 for an example.
 
+[[gremlin-language-test-cases]]
 === Gremlin Language Test Cases
 
-Test cases for the Gremlin Language currently requires that the newly developed test be added in three places:
+Test cases for the Gremlin Language currently requires that the newly developed test be added in two places:
 
 1. As a test written in Java in the `gremlin-test` module within the subpackages of
 `org.apache.tinkerpop.gremlin.process.traversal.step`
@@ -356,11 +371,14 @@ they are required for the test.
 the type notation system so that it is possible to have maps containing arbitrary keys and values.
 * Numeric - *d[_xxx_]._y_* - The "xxx" should be replaced with a number. The suffix denoted by "y" should always be
 included to further qualify the type of numeric. The following options are available:
-** *d* - 32-bit Double
-** *f* - 32-bit Float
+** *b* - 8-bit byte
+** *s* - 16-bit Short
 ** *i* - 32-bit Integer
+** *f* - 32-bit Float
 ** *l* - 64-bit Long
-** *m* - Arbitrary-precision signed decimal numbers (i.e. BigDecimal in Java)
+** *d* - 64-bit Double
+** *m* - Arbitrary-precision signed decimal numbers (e.g. `BigDecimal` in Java)
+** *n* - Arbitrary-precision integers (e.g. `BigInteger` in Java)
 * Path - *p[_xxx_,_yyy_,_zzz_,...]* - A comma separated collection of values that make up the `Path` should be added to
 between the square brackets. These values respect the type system thus allowing for creation of `Path` of vertices,
 edges, maps, and any other available type.
@@ -395,6 +413,9 @@ And the traversal of
   g.V(vId1).union(__.repeat(__.out()).times(2), __.out()).values("name")
   """
 ----
+
+The traversal must be written so that it can be parsed by both `gremlin-groovy` and `gremlin-language`. Using syntax
+particular to one but not the other may result in test execution errors.
 
 It will be the results of this traversal that end up being asserted by Gherkin. When writing these test traversals,
 be sure to always use the method and enum prefixes. For example, use  `__.out()` for an anonymous traversal rather
@@ -432,6 +453,9 @@ The "Then" options handle the assertion of the result. There are several options
 * "the result should have a count of _xxx_" - assumes a list value in the result and counts the number of values
 in it
 * "the result should be empty" - no results
+* "the traversal will raise an error" - an exception is thrown as a result of traversal iteration
+* "the traversal will raise an error with message _comparison_ text of _message_" - an exception is thrown as a result
+of traversal iteration where "_comparison_" may be one of "containing", "starting", or "ending".
 * "the result should be ordered" - the exact results and should appear in the order presented
 * "the result should be unordered" - the exact results but can appear any order
 * "the result should be of" - results can be any of the specified values and in any order (use when guarantees
@@ -472,6 +496,78 @@ Scenario: g_V_outE_drop
   And the graph should return 2 for count of "g.V()"
   And the graph should return 0 for count of "g.E()"
 ----
+
+[[gherkin-tags]]
+==== Tags
+
+Features have tags associated with them to help allow developers to better break up test runs if they desire. There
+are two types of tags:
+
+* `@StepClass*` - Marks the step grouping and is a prefix that precedes and either refers to one of the following:
+** One of the four types of steps: `Branch`, `Filter`, `Map`, and `SideEffect` (e.g. `@StepClassBranch`)
+** `Semantics` which maps to elements of the link:https://tinkerpop.apache.org/docs/x.y.z/dev/provider/#gremlin-semantics[Gremlin Semantics] specification.
+** An `Integrated` grouping that does not fit those individual classifications well.
+* `@Step*` - Marks testing for a particular step. While this tag is generally unique to the feature
+file itself and test filtering could be accomplished at that level by way of the file, the use of the tag is a
+secondary option and allows filtering to be consistently managed by tags alone. The suffix is the Gremlin step itself
+(e.g. `@StepHas`) in all cases except for `@StepVertex` which covers `V()`, `E()`, `out()`, `in()`, `both()`, `inE()`,
+`outE()`, and `bothE()`.
+
+Scenarios have tags associated with them that help identify subsets of tests so that a test runner can selectively
+include or ignore certain tests. The tags enable the practical and necessary ability for providers to ignore tests that
+they simply cannot support. It is important to be aware of the following tags when writing tests as not including a
+tag when one is necessary will cause provider tests to fail:
+
+* `@AllowNullPropertyValues` - The scenario requires that the graph be configured with `AllowNullPropertyValues` as
+`true` (meaning that it can store `null` values).
+* `@GraphComputerVerificationInjectionNotSupported` - The scenario will not work on with `GraphComputer` because the
+`inject()` step is not supported.
+* `@GraphComputerVerificationMidVNotSupported` - The scenario will not work on with `GraphComputer` because the
+mid-`V()` step is not supported.
+* `@GraphComputerVerificationOneBulk` - The scenario will not work because `withBulk(false)` is configured and that
+is not compatible with `GraphComputer`
+* `@GraphComputerVerificationReferenceOnly` - The scenario itself is not written to support `GraphComputer` because it
+tries to reference inaccessible properties that are on elements only available by "reference" (i.e `T.id` only).
+* `@GraphComputerVerificationStrategyNotSupported` - The scenario uses a traversal strategy that is not supported by
+`GraphComputer`.
+* `@GraphComputerVerificationStarGraphExceeded` - The scenario itself is not written to support `GraphComputer` because
+the traversal does not mind the star graph limitation.
+* `@MultiMetaProperties` - The scenario uses "The Crew" graph as a dataset or otherwise utilizes multi-properties
+or meta-properties for creating or querying data.
+* `@RemoteOnly` - The scenario uses some Gremlin syntax that cannot be supported outside of remote test executions. The
+best example of this sort of test would be one that uses the remote `Lambda` syntax.
+* `@UserSuppliedVertexIds` - The scenario relies on the vertex IDs specified in the dataset used by the scenario.
+* `@UserSuppliedEdgeIds` - The scenario relies on the edge IDs specified in the dataset used by the scenario.
+* `@UserSuppliedVertexPropertyIds` - The scenario relies on the vertex property IDs specified in the dataset used by the scenario.
+* `@With*` - The scenario uses some `with()` based configuration like strategies:
+** `@WithProductiveByStrategy`
+** `@WithReadOnlyStrategy`
+** `@WithSeedStrategy`
+
+Tag filters can be applied to Intellij at execution time by adding a system properties of
+`-Dcucumber.filter.tags=<step-filter>`.
+
+[[gremlin-socket-server-tests]]
+=== Gremlin Socket Server Tests
+`gremlin-socket-server` is an included test server for driver tests which require predefined server
+behavior. Typically, this is to test scenarios such as the server closing the connection or returning
+an error code but other response behavior can be added as needed for tests.
+
+Gremlin socket server uses the request id of incoming messages to determine how to respond.
+Request ids are defined in `gremlin-tools/gremlin-socket-server/conf/*.yaml`. The server side
+behavior for each request id is implemented in `TestWSGremlinInitializer`.
+
+To add new server side behavior, define a new request id in the config yaml, then add a corresponding
+field in `SocketServerSettings`. In `TestWSGremlinInitializer`, add a new block to the if else chain in the
+decode method which matches the request id. Define all server behavior and responses in this block.
+
+To write the driver test, send a request message to the gremlin socket server port as if it were a normal
+gremlin server. Override the request id on the request with one defined in the config yaml and gremlin
+socket server will respond according to the defined behavior.
+
+Ensure that the socket server is running during driver tests. By default, a docker image for
+`gremlin-socket-server` is built during `mvn install`. The simplest way to use the socket server during
+driver tests is to run a gremlin socket server container during the integration phase of driver tests.
 
 == Developing Benchmarks
 
@@ -799,18 +895,18 @@ only happen from that branch.
 [[logging]]
 == Logging
 
-TinkerPop uses SLF4j for logging and typically leans back on Log4j as the implementation. Configuring log outputs
-for debugging purposes within tests can be altered by editing the `log4j-test.properties` file in each module's test
+TinkerPop uses SLF4j for logging and relies on logback as the implementation. Configuring log outputs
+for debugging purposes within tests can be altered by editing the `logback-test.xml` file in each module's test
 resources.  That file gets copied to the `target/test-classes` on build and surefire and failsafe plugins in maven
-are then configured to point at that area of the file system for those configuration files. The properties files
+are then configured to point at that area of the file system for those configuration files. The XML files
 can be edited to fine tune control of the log output, but generally speaking the current configuration is likely
 best for everyone's general purposes, so if changes are made please revert them prior to commit.
 
 [[io]]
 == IO Documentation and Testing
 
-The link:https://tinkerpop.apache.org/docs/x.y.z/dev/io[IO Documentation] provides more details into GraphML, GraphSON
-and Gryo with a special focus on the needs of developers who are working directly with these formats. GraphSON gets
+The link:https://tinkerpop.apache.org/docs/x.y.z/dev/io[IO Documentation] provides more details into GraphML and GraphSON
+with a special focus on the needs of developers who are working directly with these formats. GraphSON gets
 the greatest focus here as it is used as the primary IO format for link:https://tinkerpop.apache.org/docs/x.y.z/reference/#gremlin-drivers-variants[GLVs].
 This documentation is largely generated from the `gremlin-io-test` module found under `gremlin-tools`. The
 `gremlin-io-test` module also includes a testing framework which validates that formats don't break between TinkerPop
@@ -837,8 +933,8 @@ test resources and the contents of the `dev-docs` contains asciidoc snippets tha
 Generating data files in the fashion mentioned above with Maven is only good for versions of TinkerPop on the 3.3.x
 line because the `gremlin-io-test` module did not exist in 3.2.x. Of course, compatibility is still tested back to
 those older versions. To generate test data from 3.2.x, there are Groovy scripts in the comments of the
-`gryo.asciidoc` and `graphson.asciidoc` files that can copy/pasted to the Gremlin Console. They will generate the
-batch of test files needed for `gremlin-io-test`.
+`graphson.asciidoc` files that can copy/pasted to the Gremlin Console. They will generate the batch of test files
+needed for `gremlin-io-test`.
 
 When does this command need to be executed?
 
@@ -859,14 +955,6 @@ V1_3_4_3("3.4.3", "1.0", "v1"),
 V1_3_4_4("3.4.4", "1.0", "v1");
 ----
 
-*GryoCompatibility* - Include new Gryo 1.0 and 3.0 enums for the current `SNAPSHOT`.
-
-[source,java]
-----
-V1D0_3_3_x("3.3.x", "1.0", "v1d0"),
-V3D0_3_3_x("3.3.x", "3.0", "v3d0")
-----
-
 *GraphSONCompatibility* - Include new GraphSON enums for each of the various GraphSON configurations and versions.
 
 [source,java]
@@ -879,9 +967,6 @@ V3D0_PARTIAL_3_3_x("3.3.x", "3.0", "v3d0");
 
 *GraphBinaryCompatibilityTest* - Add the newly included `GraphBinaryCompatibility` enums to the test parameters being
 careful to match the appropriate "mapper" to the right version.
-
-*GryoCompatibilityTest* - Add the newly included `GryoCompatibility` enums to the test parameters being careful to
-match the appropriate "mapper" to the right version.
 
 *GraphSONUntypedCompatibilityTest* - Add the newly included GraphSON 1.0 and 2.0 "untyped" enums to the test parameters
 being careful to match the appropriate "mapper" to the right version.

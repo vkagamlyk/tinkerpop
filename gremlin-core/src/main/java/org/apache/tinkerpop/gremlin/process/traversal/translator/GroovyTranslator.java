@@ -24,14 +24,12 @@ import org.apache.commons.text.StringEscapeUtils;
 import org.apache.tinkerpop.gremlin.jsr223.CoreImports;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.Pick;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Script;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
-import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
-import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.TraversalStrategyProxy;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.OrP;
@@ -39,7 +37,9 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.structure.util.reference.ReferenceVertex;
 import org.apache.tinkerpop.gremlin.util.DatetimeHelper;
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
 
 import java.math.BigDecimal;
@@ -174,30 +174,36 @@ public final class GroovyTranslator implements Translator.ScriptTranslator {
         }
 
         @Override
-        protected String getSyntax(final TraversalOptionParent.Pick o) {
-            return "TraversalOptionParent.Pick." + o.toString();
+        protected String getSyntax(final Pick o) {
+            return "Pick." + o.toString();
         }
 
         @Override
         protected String getSyntax(final Number o) {
+            if (o instanceof Double || o instanceof Float) {
+                if (NumberHelper.isNaN(o))
+                    return (o instanceof Double ? "Double" : "Float") + ".NaN";
+                if (NumberHelper.isPositiveInfinity(o))
+                    return (o instanceof Double ? "Double" : "Float") + ".POSITIVE_INFINITY";
+                if (NumberHelper.isNegativeInfinity(o))
+                    return (o instanceof Double ? "Double" : "Float") + ".POSITIVE_INFINITY";
+
+                return o + (o instanceof Double ? "d" : "f");
+            }
             if (o instanceof Long)
                 return o + "L";
-            else if (o instanceof Double)
-                return o + "d";
-            else if (o instanceof Float)
-                return o + "f";
-            else if (o instanceof Integer)
+            if (o instanceof Integer)
                 return "(int) " + o;
-            else if (o instanceof Byte)
+            if (o instanceof Byte)
                 return "(byte) " + o;
             if (o instanceof Short)
                 return "(short) " + o;
-            else if (o instanceof BigInteger)
+            if (o instanceof BigInteger)
                 return "new BigInteger('" + o.toString() + "')";
-            else if (o instanceof BigDecimal)
+            if (o instanceof BigDecimal)
                 return "new BigDecimal('" + o.toString() + "')";
-            else
-                return o.toString();
+
+            return o.toString();
         }
 
         @Override
@@ -389,6 +395,8 @@ public final class GroovyTranslator implements Translator.ScriptTranslator {
      * {@code datetime()} function. Time zone offsets are resolved to where {@code 2018-03-22T00:35:44.741+1600}
      * would be converted to {@code datetime('2018-03-21T08:35:44.741Z')}. More commonly {@code 2018-03-22} would simply
      * generate {@code datetime('2018-03-22T00:00:00Z')}.
+     * <p/>
+     * In addition, it prefers use of {@code Vertex} when producing a {@link ReferenceVertex}.
      */
     public static class LanguageTypeTranslator extends DefaultTypeTranslator {
         public LanguageTypeTranslator(final boolean withParameters) {
@@ -403,6 +411,43 @@ public final class GroovyTranslator implements Translator.ScriptTranslator {
         @Override
         protected String getSyntax(final Timestamp o) {
             return getDatetimeSyntax(o.toInstant());
+        }
+
+        @Override
+        protected Script produceScript(final Vertex o) {
+            script.append("new Vertex(");
+            convertToScript(o.id());
+            script.append(",");
+            convertToScript(o.label());
+            return script.append(")");
+        }
+
+        @Override
+        protected String getSyntax(final Number o) {
+            if (o instanceof Double || o instanceof Float) {
+                if (NumberHelper.isNaN(o))
+                    return "NaN";
+                if (NumberHelper.isPositiveInfinity(o))
+                    return "Infinity";
+                if (NumberHelper.isNegativeInfinity(o))
+                    return "-Infinity";
+
+                return o + (o instanceof Double ? "D" : "F");
+            }
+            if (o instanceof Long)
+                return o + "L";
+            if (o instanceof Integer)
+                return o + "I";
+            if (o instanceof Byte)
+                return o + "B";
+            if (o instanceof Short)
+                return o + "S";
+            if (o instanceof BigInteger)
+                return o + "N";
+            if (o instanceof BigDecimal)
+                return o + "D";
+
+            return o.toString();
         }
 
         private static String getDatetimeSyntax(final Instant i) {

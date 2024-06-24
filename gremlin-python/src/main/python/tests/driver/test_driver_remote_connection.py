@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+import os
 
 from gremlin_python import statics
 from gremlin_python.driver.protocol import GremlinServerError
@@ -33,6 +34,8 @@ from gremlin_python.driver.serializer import GraphSONSerializersV2d0
 
 __author__ = 'Marko A. Rodriguez (http://markorodriguez.com)'
 
+gremlin_server_url = os.environ.get('GREMLIN_SERVER_URL', 'ws://localhost:{}/gremlin')
+test_no_auth_url = gremlin_server_url.format(45940)
 
 class TestDriverRemoteConnection(object):
     def test_traversals(self, remote_connection):
@@ -42,7 +45,8 @@ class TestDriverRemoteConnection(object):
         assert long(6) == g.V().count().toList()[0]
         # #
         assert Vertex(1) == g.V(1).next()
-        assert 1 == g.V(1).id().next()
+        assert Vertex(1) == g.V(Vertex(1)).next()
+        assert 1 == g.V(1).id_().next()
         assert Traverser(Vertex(1)) == g.V(1).nextTraverser()
         assert 1 == len(g.V(1).toList())
         assert isinstance(g.V(1).toList(), list)
@@ -108,14 +112,14 @@ class TestDriverRemoteConnection(object):
 
     def test_lambda_traversals(self, remote_connection):
         statics.load_statics(globals())
-        assert "remoteconnection[ws://localhost:45940/gremlin,gmodern]" == str(remote_connection)
+        assert "remoteconnection[{},gmodern]".format(test_no_auth_url) == str(remote_connection)
         g = traversal().withRemote(remote_connection)
 
-        assert 24.0 == g.withSack(1.0, lambda: ("x -> x + 1", "gremlin-groovy")).V().both().sack().sum().next()
-        assert 24.0 == g.withSack(lambda: ("{1.0d}", "gremlin-groovy"), lambda: ("x -> x + 1", "gremlin-groovy")).V().both().sack().sum().next()
+        assert 24.0 == g.withSack(1.0, lambda: ("x -> x + 1", "gremlin-groovy")).V().both().sack().sum_().next()
+        assert 24.0 == g.withSack(lambda: ("{1.0d}", "gremlin-groovy"), lambda: ("x -> x + 1", "gremlin-groovy")).V().both().sack().sum_().next()
 
-        assert 48.0 == g.withSack(1.0, lambda: ("x, y ->  x + y + 1", "gremlin-groovy")).V().both().sack().sum().next()
-        assert 48.0 == g.withSack(lambda: ("{1.0d}", "gremlin-groovy"), lambda: ("x, y ->  x + y + 1", "gremlin-groovy")).V().both().sack().sum().next()
+        assert 48.0 == g.withSack(1.0, lambda: ("x, y ->  x + y + 1", "gremlin-groovy")).V().both().sack().sum_().next()
+        assert 48.0 == g.withSack(lambda: ("{1.0d}", "gremlin-groovy"), lambda: ("x, y ->  x + y + 1", "gremlin-groovy")).V().both().sack().sum_().next()
 
     def test_iteration(self, remote_connection):
         statics.load_statics(globals())
@@ -164,7 +168,7 @@ class TestDriverRemoteConnection(object):
         assert 4 == g.V().count().next()
         assert 0 == g.E().count().next()
         assert 1 == g.V().label().dedup().count().next()
-        assert 4 == g.V().filter(lambda: ("x -> true", "gremlin-groovy")).count().next()
+        assert 4 == g.V().filter_(lambda: ("x -> true", "gremlin-groovy")).count().next()
         assert "person" == g.V().label().dedup().next()
         #
         g = traversal().withRemote(remote_connection). \
@@ -208,7 +212,7 @@ class TestDriverRemoteConnection(object):
         #
         g = traversal().withRemote(remote_connection).with_("x", True).with_('evaluationTimeout', 10)
         try:
-            g.inject(1).sideEffect(lambda: ("Thread.sleep(5000)", "gremlin-groovy")).iterate()
+            g.inject(1).sideEffect(lambda: ("Thread.sleep(1000)", "gremlin-groovy")).iterate()
             assert False
         except GremlinServerError as gse:
             assert gse.status_code == 598

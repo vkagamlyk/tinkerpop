@@ -23,6 +23,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using Gremlin.Net.Process.Traversal;
@@ -60,6 +62,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
                 {typeof(Cardinality), EnumSerializers.CardinalitySerializer},
                 {typeof(Column), EnumSerializers.ColumnSerializer},
                 {typeof(Direction), EnumSerializers.DirectionSerializer},
+                {typeof(Merge), EnumSerializers.MergeSerializer},
                 {typeof(Operator), EnumSerializers.OperatorSerializer},
                 {typeof(Order), EnumSerializers.OrderSerializer},
                 {typeof(Pick), EnumSerializers.PickSerializer},
@@ -94,7 +97,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
                 {DataType.Float, SingleTypeSerializers.FloatSerializer},
                 {DataType.List, new ListSerializer<object>()},
                 {DataType.Map, new MapSerializer<object, object>()},
-                {DataType.Set, new SetSerializer<HashSet<object>, object>()},
+                {DataType.Set, new SetSerializer<HashSet<object?>, object>()},
                 {DataType.Uuid, new UuidSerializer()},
                 {DataType.Edge, new EdgeSerializer()},
                 {DataType.Path, new PathSerializer()},
@@ -107,6 +110,7 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
                 {DataType.Cardinality, EnumSerializers.CardinalitySerializer},
                 {DataType.Column, EnumSerializers.ColumnSerializer},
                 {DataType.Direction, EnumSerializers.DirectionSerializer},
+                {DataType.Merge, EnumSerializers.MergeSerializer},
                 {DataType.Operator, EnumSerializers.OperatorSerializer},
                 {DataType.Order, EnumSerializers.OrderSerializer},
                 {DataType.Pick, EnumSerializers.PickSerializer},
@@ -167,8 +171,10 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
             if (IsDictionaryType(valueType, out var dictKeyType, out var dictValueType))
             {
                 var serializerType = typeof(MapSerializer<,>).MakeGenericType(dictKeyType, dictValueType);
-                var serializer = (ITypeSerializer) Activator.CreateInstance(serializerType);
-                _serializerByType[valueType] = serializer;
+                var serializer = (ITypeSerializer?) Activator.CreateInstance(serializerType);
+                _serializerByType[valueType] = serializer ??
+                                               throw new IOException(
+                                                   $"Cannot create a serializer for the dictionary type {valueType}.");
                 return serializer;
             }
 
@@ -176,17 +182,21 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
             {
                 var memberType = valueType.GetGenericArguments()[0];
                 var serializerType = typeof(SetSerializer<,>).MakeGenericType(valueType, memberType);
-                var serializer = (ITypeSerializer) Activator.CreateInstance(serializerType);
-                _serializerByType[valueType] = serializer;
+                var serializer = (ITypeSerializer?) Activator.CreateInstance(serializerType);
+                _serializerByType[valueType] = serializer ??
+                                               throw new IOException(
+                                                   $"Cannot create a serializer for the set type {valueType}.");
                 return serializer;
             }
 
             if (valueType.IsArray)
             {
                 var memberType = valueType.GetElementType();
-                var serializerType = typeof(ArraySerializer<>).MakeGenericType(memberType);
-                var serializer = (ITypeSerializer) Activator.CreateInstance(serializerType);
-                _serializerByType[valueType] = serializer;
+                var serializerType = typeof(ArraySerializer<>).MakeGenericType(memberType!);
+                var serializer = (ITypeSerializer?) Activator.CreateInstance(serializerType);
+                _serializerByType[valueType] = serializer ??
+                                               throw new IOException(
+                                                   $"Cannot create a serializer for the array type {valueType}.");
                 return serializer;
             }
 
@@ -194,8 +204,10 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
             {
                 var memberType = valueType.GetGenericArguments()[0];
                 var serializerType = typeof(ListSerializer<>).MakeGenericType(memberType);
-                var serializer = (ITypeSerializer) Activator.CreateInstance(serializerType);
-                _serializerByType[valueType] = serializer;
+                var serializer = (ITypeSerializer?) Activator.CreateInstance(serializerType);
+                _serializerByType[valueType] = serializer ??
+                                               throw new IOException(
+                                                   $"Cannot create a serializer for the list type {valueType}.");
                 return serializer;
             }
 
@@ -212,7 +224,8 @@ namespace Gremlin.Net.Structure.IO.GraphBinary
             throw new InvalidOperationException($"No serializer found for type ${valueType}.");
         }
 
-        private static bool IsDictionaryType(Type type, out Type keyType, out Type valueType)
+        private static bool IsDictionaryType(Type type, [NotNullWhen(returnValue: true)] out Type? keyType,
+            [NotNullWhen(returnValue: true)] out Type? valueType)
         {
             var maybeInterfaceType = type
                 .GetInterfaces()

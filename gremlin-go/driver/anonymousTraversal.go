@@ -45,6 +45,8 @@ func Traversal_() AnonymousTraversalSource {
 type AnonymousTraversal interface {
 	// T__ creates an empty GraphTraversal.
 	T__(args ...interface{}) *GraphTraversal
+	// E adds the e step to the GraphTraversal.
+	E(args ...interface{}) *GraphTraversal
 	// V adds the v step to the GraphTraversal.
 	V(args ...interface{}) *GraphTraversal
 	// AddE adds the addE step to the GraphTraversal.
@@ -69,6 +71,8 @@ type AnonymousTraversal interface {
 	Branch(args ...interface{}) *GraphTraversal
 	// By adds the by step to the GraphTraversal.
 	By(args ...interface{}) *GraphTraversal
+	// Call adds the call step to the GraphTraversal.
+	Call(args ...interface{}) *GraphTraversal
 	// Cap adds the cap step to the GraphTraversal.
 	Cap(args ...interface{}) *GraphTraversal
 	// Choose adds the choose step to the GraphTraversal.
@@ -89,10 +93,14 @@ type AnonymousTraversal interface {
 	Dedup(args ...interface{}) *GraphTraversal
 	// Drop adds the drop step to the GraphTraversal.
 	Drop(args ...interface{}) *GraphTraversal
+	// Element adds the element step to the GraphTraversal.
+	Element(args ...interface{}) *GraphTraversal
 	// ElementMap adds the elementMap step to the GraphTraversal.
 	ElementMap(args ...interface{}) *GraphTraversal
 	// Emit adds the emit step to the GraphTraversal.
 	Emit(args ...interface{}) *GraphTraversal
+	// Fail adds the fail step to the GraphTraversal.
+	Fail(args ...interface{}) *GraphTraversal
 	// Filter adds the filter step to the GraphTraversal.
 	Filter(args ...interface{}) *GraphTraversal
 	// FlatMap adds the flatMap step to the GraphTraversal.
@@ -153,6 +161,10 @@ type AnonymousTraversal interface {
 	Max(args ...interface{}) *GraphTraversal
 	// Mean adds the mean step to the GraphTraversal.
 	Mean(args ...interface{}) *GraphTraversal
+	// MergeE adds the mergeE step to the GraphTraversal.
+	MergeE(args ...interface{}) *GraphTraversal
+	// MergeV adds the mergeV step to the GraphTraversal.
+	MergeV(args ...interface{}) *GraphTraversal
 	// Min adds the min step to the GraphTraversal.
 	Min(args ...interface{}) *GraphTraversal
 	// None adds the none step to the GraphTraversal.
@@ -259,13 +271,18 @@ type anonymousTraversal struct {
 
 var T__ AnonymousTraversal = &anonymousTraversal{
 	func() *GraphTraversal {
-		return NewGraphTraversal(nil, newBytecode(nil), nil)
+		return NewGraphTraversal(nil, NewBytecode(nil), nil)
 	},
 }
 
 // T__ creates an empty GraphTraversal.
 func (anonymousTraversal *anonymousTraversal) T__(args ...interface{}) *GraphTraversal {
 	return anonymousTraversal.Inject(args...)
+}
+
+// E adds the e step to the GraphTraversal.
+func (anonymousTraversal *anonymousTraversal) E(args ...interface{}) *GraphTraversal {
+	return anonymousTraversal.graphTraversal().E(args...)
 }
 
 // V adds the v step to the GraphTraversal.
@@ -328,6 +345,11 @@ func (anonymousTraversal *anonymousTraversal) By(args ...interface{}) *GraphTrav
 	return anonymousTraversal.graphTraversal().By(args...)
 }
 
+// Call adds the call step to the GraphTraversal.
+func (anonymousTraversal *anonymousTraversal) Call(args ...interface{}) *GraphTraversal {
+	return anonymousTraversal.graphTraversal().Call(args...)
+}
+
 // Cap adds the cap step to the GraphTraversal.
 func (anonymousTraversal *anonymousTraversal) Cap(args ...interface{}) *GraphTraversal {
 	return anonymousTraversal.graphTraversal().Cap(args...)
@@ -378,6 +400,11 @@ func (anonymousTraversal *anonymousTraversal) Drop(args ...interface{}) *GraphTr
 	return anonymousTraversal.graphTraversal().Drop(args...)
 }
 
+// Element adds the element step to the GraphTraversal.
+func (anonymousTraversal *anonymousTraversal) Element(args ...interface{}) *GraphTraversal {
+	return anonymousTraversal.graphTraversal().Element(args...)
+}
+
 // ElementMap adds the elementMap step to the GraphTraversal.
 func (anonymousTraversal *anonymousTraversal) ElementMap(args ...interface{}) *GraphTraversal {
 	return anonymousTraversal.graphTraversal().ElementMap(args...)
@@ -386,6 +413,11 @@ func (anonymousTraversal *anonymousTraversal) ElementMap(args ...interface{}) *G
 // Emit adds the emit step to the GraphTraversal.
 func (anonymousTraversal *anonymousTraversal) Emit(args ...interface{}) *GraphTraversal {
 	return anonymousTraversal.graphTraversal().Emit(args...)
+}
+
+// Fail adds the fail step to the GraphTraversal.
+func (anonymousTraversal *anonymousTraversal) Fail(args ...interface{}) *GraphTraversal {
+	return anonymousTraversal.graphTraversal().Fail(args...)
 }
 
 // Filter adds the filter step to the GraphTraversal.
@@ -536,6 +568,16 @@ func (anonymousTraversal *anonymousTraversal) Max(args ...interface{}) *GraphTra
 // Mean adds the mean step to the GraphTraversal.
 func (anonymousTraversal *anonymousTraversal) Mean(args ...interface{}) *GraphTraversal {
 	return anonymousTraversal.graphTraversal().Mean(args...)
+}
+
+// MergeE adds the mergeE step to the GraphTraversal.
+func (anonymousTraversal *anonymousTraversal) MergeE(args ...interface{}) *GraphTraversal {
+	return anonymousTraversal.graphTraversal().MergeE(args...)
+}
+
+// MergeV adds the mergeV step to the GraphTraversal.
+func (anonymousTraversal *anonymousTraversal) MergeV(args ...interface{}) *GraphTraversal {
+	return anonymousTraversal.graphTraversal().MergeV(args...)
 }
 
 // Min adds the min step to the GraphTraversal.

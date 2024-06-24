@@ -24,12 +24,14 @@ import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalParent;
+import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils;
 import org.apache.tinkerpop.gremlin.util.iterator.StoreIteratorCounter;
+import org.javatuples.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,10 +45,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -220,6 +224,14 @@ public abstract class AbstractGremlinTest {
         return (GraphTraversal<Vertex, VertexProperty<Object>>) graphProvider.traversal(graph).V().has("name", vertexName).properties(vertexPropertyKey);
     }
 
+    public VertexProperty convertToVertexProperty(final String vertexName, final String propertyKey, final Object propertyValue) {
+        return convertToVertexProperty(graph, vertexName, propertyKey).hasValue(propertyValue).toList().get(0);
+    }
+
+    public Edge convertToEdge(final String outVertexName, String edgeLabel, final String inVertexName) {
+        return convertToEdge(graph, outVertexName, edgeLabel, inVertexName);
+    }
+
     public Edge convertToEdge(final Graph graph, final String outVertexName, String edgeLabel, final String inVertexName) {
         return graphProvider.traversal(graph).V().has("name", outVertexName).outE(edgeLabel).as("e").inV().has("name", inVertexName).<Edge>select("e").toList().get(0);
     }
@@ -278,6 +290,7 @@ public abstract class AbstractGremlinTest {
         if (!traversal.asAdmin().isLocked()) traversal.asAdmin().applyStrategies();
         logger.info("  post-strategy:" + traversal);
         verifyUniqueStepIds(traversal.asAdmin());
+        verifyRootIdentification(traversal.asAdmin(), true);
     }
 
     public static void assertVertexEdgeCounts(final Graph graph, final int expectedVertexCount, final int expectedEdgeCount) {
@@ -297,6 +310,24 @@ public abstract class AbstractGremlinTest {
 
     public static void verifyUniqueStepIds(final Traversal.Admin<?, ?> traversal) {
         AbstractGremlinTest.verifyUniqueStepIds(traversal, 0, new HashSet<>());
+    }
+
+    /**
+     * Ensures that the {@link Traversal} and all of its children is constructed in a fashion where the parent/child
+     * relationship is properly established.
+     */
+    public static void verifyRootIdentification(final Traversal.Admin<?, ?> traversal, final boolean expectRoot) {
+        assertThat(traversal.isRoot(), is(expectRoot));
+        for (final Step<?,?> step : traversal.getSteps()) {
+            if (step instanceof TraversalParent) {
+                for (final Traversal.Admin<?, ?> globalTraversal : ((TraversalParent) step).getGlobalChildren()) {
+                    verifyRootIdentification(globalTraversal, false);
+                }
+                for (final Traversal.Admin<?, ?> localTraversal : ((TraversalParent) step).getLocalChildren()) {
+                    verifyRootIdentification(localTraversal, false);
+                }
+            }
+        }
     }
 
     private static Set<FeatureRequirement> getFeatureRequirementsForTest(final Method testMethod, final LoadGraphWith[] loadGraphWiths) {

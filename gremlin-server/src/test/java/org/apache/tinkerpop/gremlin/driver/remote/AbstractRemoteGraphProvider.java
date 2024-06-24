@@ -24,7 +24,7 @@ import org.apache.tinkerpop.gremlin.LoadGraphWith;
 import org.apache.tinkerpop.gremlin.TestHelper;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
-import org.apache.tinkerpop.gremlin.driver.ser.Serializers;
+import org.apache.tinkerpop.gremlin.util.ser.Serializers;
 import org.apache.tinkerpop.gremlin.process.computer.Computer;
 import org.apache.tinkerpop.gremlin.process.remote.RemoteConnection;
 import org.apache.tinkerpop.gremlin.structure.RemoteGraph;
@@ -206,6 +206,10 @@ import static org.apache.tinkerpop.gremlin.process.remote.RemoteConnection.GREML
         test = "org.apache.tinkerpop.gremlin.process.traversal.step.map.UnfoldTest",
         method = "g_V_valueMap_unfold_mapXkeyX",
         reason = "Tests that include lambdas are not supported by the test suite for remotes")
+@Graph.OptOut(
+        test = "org.apache.tinkerpop.gremlin.process.traversal.step.OrderabilityTest",
+        method = "g_inject_order_with_unknown_type",
+        reason = "Tests that inject a generic Java Object are not supported by the test suite for remotes")
 public abstract class AbstractRemoteGraphProvider extends AbstractGraphProvider implements AutoCloseable {
     private final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
     private static final Set<Class> IMPLEMENTATION = new HashSet<Class>() {{
@@ -330,7 +334,7 @@ public abstract class AbstractRemoteGraphProvider extends AbstractGraphProvider 
         ServerTestHelper.rewritePathsInGremlinServerSettings(settings);
 
         settings.maxContentLength = 1024000;
-        settings.maxChunkSize =1024000;
+        settings.maxChunkSize = 1024000;
 
         server = new GremlinServer(settings);
 

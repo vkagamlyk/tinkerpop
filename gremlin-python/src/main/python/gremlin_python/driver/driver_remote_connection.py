@@ -27,6 +27,8 @@ from gremlin_python.process.strategies import OptionsStrategy
 from gremlin_python.process.traversal import Bytecode
 import uuid
 
+log = logging.getLogger("gremlinpython")
+
 __author__ = 'David M. Brown (davebshow@gmail.com), Lyndon Bauto (lyndonb@bitquilltech.com)'
 
 
@@ -37,8 +39,8 @@ class DriverRemoteConnection(RemoteConnection):
                  username="", password="", kerberized_service='',
                  message_serializer=None, graphson_reader=None,
                  graphson_writer=None, headers=None, session=None,
-                 **transport_kwargs):
-        logging.info("Creating DriverRemoteConnection with url '%s'", str(url))
+                 enable_user_agent_on_connect=True, **transport_kwargs):
+        log.info("Creating DriverRemoteConnection with url '%s'", str(url))
         self.__url = url
         self.__traversal_source = traversal_source
         self.__protocol_factory = protocol_factory
@@ -53,13 +55,14 @@ class DriverRemoteConnection(RemoteConnection):
         self.__graphson_writer = graphson_writer
         self.__headers = headers
         self.__session = session
+        self.__enable_user_agent_on_connect = enable_user_agent_on_connect
         self.__transport_kwargs = transport_kwargs
 
         # keeps a list of sessions that have been spawned from this DriverRemoteConnection
         # so that they can be closed if this parent session is closed.
         self.__spawned_sessions = []
 
-        if message_serializer is None:
+        if message_serializer is None and graphson_reader is not None and graphson_writer is not None:
             message_serializer = serializer.GraphSONMessageSerializer(
                 reader=graphson_reader,
                 writer=graphson_writer)
@@ -74,6 +77,7 @@ class DriverRemoteConnection(RemoteConnection):
                                      kerberized_service=kerberized_service,
                                      headers=headers,
                                      session=session,
+                                     enable_user_agent_on_connect=enable_user_agent_on_connect,
                                      **transport_kwargs)
         self._url = self._client._url
         self._traversal_source = self._client._traversal_source
@@ -82,21 +86,21 @@ class DriverRemoteConnection(RemoteConnection):
         # close this client and any DriverRemoteConnection instances spawned from this one
         # for a session
         if len(self.__spawned_sessions) > 0:
-            logging.info("closing spawned sessions from DriverRemoteConnection with url '%s'", str(self._url))
+            log.info("closing spawned sessions from DriverRemoteConnection with url '%s'", str(self._url))
             for spawned_session in self.__spawned_sessions:
                 spawned_session.close()
             self.__spawned_sessions.clear()
 
         if self.__session:
-            logging.info("closing DriverRemoteConnection with url '%s' with session '%s'",
+            log.info("closing DriverRemoteConnection with url '%s' with session '%s'",
                          str(self._url), str(self.__session))
         else:
-            logging.info("closing DriverRemoteConnection with url '%s'", str(self._url))
+            log.info("closing DriverRemoteConnection with url '%s'", str(self._url))
 
         self._client.close()
 
     def submit(self, bytecode):
-        logging.debug("submit with bytecode '%s'", str(bytecode))
+        log.debug("submit with bytecode '%s'", str(bytecode))
         result_set = self._client.submit(bytecode, request_options=self._extract_request_options(bytecode))
         results = result_set.all().result()
         return RemoteTraversal(iter(results))
@@ -109,7 +113,7 @@ class DriverRemoteConnection(RemoteConnection):
         self.submit_async(message, bindings, request_options)
 
     def submit_async(self, bytecode):
-        logging.debug("submit_async with bytecode '%s'", str(bytecode))
+        log.debug("submit_async with bytecode '%s'", str(bytecode))
         future = Future()
         future_result_set = self._client.submit_async(bytecode, request_options=self._extract_request_options(bytecode))
 
@@ -131,7 +135,7 @@ class DriverRemoteConnection(RemoteConnection):
         return self.__session is not None
 
     def create_session(self):
-        logging.info("Creating session based connection")
+        log.info("Creating session based connection")
         if self.is_session_bound():
             raise Exception('Connection is already bound to a session - child sessions are not allowed')
         conn = DriverRemoteConnection(self.__url,
@@ -148,16 +152,17 @@ class DriverRemoteConnection(RemoteConnection):
                                       graphson_writer=self.__graphson_writer,
                                       headers=self.__headers,
                                       session=uuid.uuid4(),
+                                      enable_user_agent_on_connect=self.__enable_user_agent_on_connect,
                                       **self.__transport_kwargs)
         self.__spawned_sessions.append(conn)
         return conn
 
     def commit(self):
-        logging.info("Submitting commit graph operation.")
+        log.info("Submitting commit graph operation.")
         return self._client.submit(Bytecode.GraphOp.commit())
 
     def rollback(self):
-        logging.info("Submitting rollback graph operation.")
+        log.info("Submitting rollback graph operation.")
         return self._client.submit(Bytecode.GraphOp.rollback())
 
     @staticmethod

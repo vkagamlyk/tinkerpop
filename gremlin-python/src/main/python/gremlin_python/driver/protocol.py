@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,15 +22,11 @@ import base64
 import struct
 
 # import kerberos    Optional dependency imported in relevant codeblock
-import six
-
-try:
-    import ujson as json
-except ImportError:
-    import json
 
 from gremlin_python.driver import request
 from gremlin_python.driver.resultset import ResultSet
+
+log = logging.getLogger("gremlinpython")
 
 __author__ = 'David M. Brown (davebshow@gmail.com)'
 
@@ -40,6 +36,7 @@ class GremlinServerError(Exception):
         super(GremlinServerError, self).__init__('{0}: {1}'.format(status['code'], status['message']))
         self._status_attributes = status['attributes']
         self.status_code = status['code']
+        self.status_message = status['message']
 
     @property
     def status_attributes(self):
@@ -50,8 +47,7 @@ class ConfigurationError(Exception):
     pass
 
 
-@six.add_metaclass(abc.ABCMeta)
-class AbstractBaseProtocol:
+class AbstractBaseProtocol(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def connection_made(self, transport):
@@ -68,15 +64,20 @@ class AbstractBaseProtocol:
 
 class GremlinServerWSProtocol(AbstractBaseProtocol):
 
-    MAX_CONTENT_LENGTH = 65536
     QOP_AUTH_BIT = 1
     _kerberos_context = None
+    _max_content_length = 10 * 1024 * 1024
 
-    def __init__(self, message_serializer, username='', password='', kerberized_service=''):
+    def __init__(self,
+                 message_serializer,
+                 username='', password='',
+                 kerberized_service='',
+                 max_content_length=10 * 1024 * 1024):
         self._message_serializer = message_serializer
         self._username = username
         self._password = password
         self._kerberized_service = kerberized_service
+        self._max_content_length = max_content_length
 
     def connection_made(self, transport):
         super(GremlinServerWSProtocol, self).connection_made(transport)
@@ -88,7 +89,7 @@ class GremlinServerWSProtocol(AbstractBaseProtocol):
     def data_received(self, message, results_dict):
         # if Gremlin Server cuts off then we get a None for the message
         if message is None:
-            logging.error("Received empty message from server.")
+            log.error("Received empty message from server.")
             raise GremlinServerError({'code': 500,
                                       'message': 'Server disconnected - please try to reconnect', 'attributes': {}})
 
@@ -112,7 +113,7 @@ class GremlinServerWSProtocol(AbstractBaseProtocol):
                 error_message = 'Gremlin server requires authentication credentials in DriverRemoteConnection. ' \
                                 'For basic authentication provide username and password. ' \
                                 'For kerberos authentication provide the kerberized_service parameter.'
-                logging.error(error_message)
+                log.error(error_message)
                 raise ConfigurationError(error_message)
             self.write(request_id, request_message)
             data = self._transport.read()
@@ -131,7 +132,7 @@ class GremlinServerWSProtocol(AbstractBaseProtocol):
         else:
             # This message is going to be huge and kind of hard to read, but in the event of an error,
             # it can provide invaluable info, so space it out appropriately.
-            logging.error("\r\nReceived error message '%s'\r\n\r\nWith results dictionary '%s'",
+            log.error("\r\nReceived error message '%s'\r\n\r\nWith results dictionary '%s'",
                           str(message), str(results_dict))
             del results_dict[request_id]
             raise GremlinServerError(message['status'])
@@ -183,7 +184,7 @@ class GremlinServerWSProtocol(AbstractBaseProtocol):
 
         name_length = len(self._username)
         fmt = '!I' + str(name_length) + 's'
-        word = self.QOP_AUTH_BIT << 24 | self.MAX_CONTENT_LENGTH
+        word = self.QOP_AUTH_BIT << 24 | self._max_content_length
         out = struct.pack(fmt, word, self._username.encode("utf-8"),)
         encoded = base64.b64encode(out).decode('ascii')
         kerberos.authGSSClientWrap(self._kerberos_context, encoded)

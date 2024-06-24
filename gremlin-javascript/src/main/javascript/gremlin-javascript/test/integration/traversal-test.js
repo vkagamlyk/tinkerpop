@@ -29,7 +29,7 @@ const DriverRemoteConnection = require('../../lib/driver/driver-remote-connectio
 const { Vertex } = require('../../lib/structure/graph');
 const { traversal } = require('../../lib/process/anonymous-traversal');
 const { GraphTraversalSource, GraphTraversal, statics } = require('../../lib/process/graph-traversal');
-const { SubgraphStrategy, ReadOnlyStrategy,
+const { SubgraphStrategy, ReadOnlyStrategy, SeedStrategy,
         ReservedKeysVerificationStrategy, EdgeLabelVerificationStrategy } = require('../../lib/process/traversal-strategy');
 const Bytecode = require('../../lib/process/bytecode');
 const helper = require('../helper');
@@ -76,7 +76,7 @@ describe('Traversal', function () {
   });
   describe("#construct", function () {
     it('should not hang if server not present', function() {
-      const g = traversal().withRemote(new DriverRemoteConnection('ws://localhost:9998/gremlin', {traversalSource: 'g'}));
+      const g = traversal().withRemote(helper.getDriverRemoteConnection('ws://localhost:9998/gremlin', {traversalSource: 'g'}));
       return g.V().toList().then(function() {
         assert.fail("there is no server so an error should have occurred");
       }).catch(function(err) {
@@ -209,6 +209,13 @@ describe('Traversal', function () {
     it('should allow with_(evaluationTimeout,10)', function() {
       const g = traversal().withRemote(connection).with_('x').with_('evaluationTimeout', 10);
       return g.V().repeat(__.both()).iterate().then(() => assert.fail("should have tanked"), (err) => assert.strictEqual(err.statusCode, 598));
+    });
+    it('should allow SeedStrategy', function () {
+      const g = traversal().withRemote(connection).withStrategies(new SeedStrategy({seed: 999999}));
+      return g.V().coin(0.4).count().next().then(function (item1) {
+        assert.ok(item1);
+        assert.strictEqual(item1.value, 1);
+      }, (err) => assert.fail("tanked: " + err));
     });
   });
   describe('support remote transactions - commit', function() {

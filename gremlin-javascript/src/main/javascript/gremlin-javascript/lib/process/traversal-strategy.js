@@ -295,10 +295,22 @@ class ReservedKeysVerificationStrategy extends TraversalStrategy {
    * @param {Array<String>} keys the list of reserved keys to verify
    */
   constructor(logWarnings = false, throwException = false, keys = ['id', 'label']) {
-    super('org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.EdgeLabelVerificationStrategy', {
+    super('org.apache.tinkerpop.gremlin.process.traversal.strategy.verification.ReservedKeysVerificationStrategy', {
       logWarnings: logWarnings,
       throwException: throwException,
       keys: keys,
+    });
+  }
+}
+
+class SeedStrategy extends TraversalStrategy {
+  /**
+   * @param {Object} [options]
+   * @param {number} [options.seed] the seed to provide to the random number generator for the traversal
+   */
+  constructor(options) {
+    super('org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SeedStrategy', {
+      seed: options.seed,
     });
   }
 }
@@ -312,6 +324,7 @@ module.exports = {
   HaltedTraverserStrategy: HaltedTraverserStrategy,
   OptionsStrategy: OptionsStrategy,
   PartitionStrategy: PartitionStrategy,
+  SeedStrategy: SeedStrategy,
   SubgraphStrategy: SubgraphStrategy,
   VertexProgramStrategy: VertexProgramStrategy,
   // finalization

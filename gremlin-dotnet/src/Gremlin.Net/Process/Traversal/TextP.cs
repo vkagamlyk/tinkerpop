@@ -21,6 +21,7 @@
 
 #endregion
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -40,7 +41,7 @@ namespace Gremlin.Net.Process.Traversal
         /// <param name="operatorName">The name of the predicate.</param>
         /// <param name="value">The value of the predicate.</param>
         /// <param name="other">An optional other predicate that is used as an argument for this predicate.</param>
-        public TextP(string operatorName, string value, P other = null) : base(operatorName, value, other)
+        public TextP(string operatorName, string value, P? other = null) : base(operatorName, value, other)
         {
         }
 
@@ -75,10 +76,14 @@ namespace Gremlin.Net.Process.Traversal
             return new TextP("startingWith", value);
         }
 
-
-        private static T[] ToGenericArray<T>(ICollection<T> collection)
+        public static TextP Regex(string value)
         {
-            return collection?.ToArray() ?? new T[0];
+            return new TextP("regex", value);
+        }
+
+        public static TextP NotRegex(string value)
+        {
+            return new TextP("notRegex", value);
         }
 
         /// <inheritdoc />

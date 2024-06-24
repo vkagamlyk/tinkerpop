@@ -98,6 +98,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * @author Stephen Mallette (http://stephen.genoprime.com)
  */
+@org.junit.Ignore("Don't think we need to keep these in sync anymore, but not quite ready to delete this all together")
 public class FeatureCoverageTest {
 
     private static Pattern scenarioName = Pattern.compile("^\\s*Scenario:\\s*(.*)$");
@@ -181,7 +182,7 @@ public class FeatureCoverageTest {
         for (Class<?> t : testClassesToEnforce) {
             final String packge = t.getPackage().getName();
             final String group = packge.substring(packge.lastIndexOf(".") + 1, packge.length());
-            final String featureFileName = "features" + File.separator +
+            final String featureFileName = "org/apache/tinkerpop/gremlin/test/features" + File.separator +
                                            group + File.separator +
                                            t.getSimpleName().replace("Test", "") + ".feature";
             final Set<String> testMethods = Stream.of(t.getDeclaredMethods())

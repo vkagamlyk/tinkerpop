@@ -18,11 +18,13 @@
 #
 import logging
 import warnings
+import queue
 from concurrent.futures import ThreadPoolExecutor
-from six.moves import queue
 
 from gremlin_python.driver import connection, protocol, request, serializer
 from gremlin_python.process import traversal
+
+log = logging.getLogger("gremlinpython")
 
 # This is until concurrent.futures backport 3.1.0 release
 try:
@@ -41,16 +43,18 @@ class Client:
                  transport_factory=None, pool_size=None, max_workers=None,
                  message_serializer=None, username="", password="",
                  kerberized_service="", headers=None, session=None,
-                 **transport_kwargs):
-        logging.info("Creating Client with url '%s'", url)
+                 enable_user_agent_on_connect=True, **transport_kwargs):
+        log.info("Creating Client with url '%s'", url)
         self._closed = False
         self._url = url
         self._headers = headers
+        self._enable_user_agent_on_connect = enable_user_agent_on_connect
         self._traversal_source = traversal_source
         if "max_content_length" not in transport_kwargs:
             transport_kwargs["max_content_length"] = 10 * 1024 * 1024
         if message_serializer is None:
-            message_serializer = serializer.GraphSONSerializersV3d0()
+            message_serializer = serializer.GraphBinarySerializersV1()
+
         self._message_serializer = message_serializer
         self._username = username
         self._password = password
@@ -72,7 +76,8 @@ class Client:
                 self._message_serializer,
                 username=self._username,
                 password=self._password,
-                kerberized_service=kerberized_service)
+                kerberized_service=kerberized_service,
+                max_content_length=transport_kwargs["max_content_length"])
         self._protocol_factory = protocol_factory
         if self._session_enabled:
             if pool_size is None:
@@ -80,7 +85,7 @@ class Client:
             elif pool_size != 1:
                 raise Exception("PoolSize must be 1 on session mode!")
         if pool_size is None:
-            pool_size = 4
+            pool_size = 8
         self._pool_size = pool_size
         # This is until concurrent.futures backport 3.1.0 release
         if max_workers is None:
@@ -120,7 +125,7 @@ class Client:
 
         if self._session_enabled:
             self._close_session()
-        logging.info("Closing Client with url '%s'", self._url)
+        log.info("Closing Client with url '%s'", self._url)
         while not self._pool.empty():
             conn = self._pool.get(True)
             conn.close()
@@ -139,7 +144,7 @@ class Client:
         return connection.Connection(
             self._url, self._traversal_source, protocol,
             self._transport_factory, self._executor, self._pool,
-            headers=self._headers)
+            headers=self._headers, enable_user_agent_on_connect=self._enable_user_agent_on_connect)
 
     def submit(self, message, bindings=None, request_options=None):
         return self.submit_async(message, bindings=bindings, request_options=request_options).result()
@@ -149,10 +154,10 @@ class Client:
             "gremlin_python.driver.client.Client.submitAsync will be replaced by "
             "gremlin_python.driver.client.Client.submit_async.",
             DeprecationWarning)
-        self.submit_async(message, bindings, request_options)
+        return self.submit_async(message, bindings, request_options)
 
     def submit_async(self, message, bindings=None, request_options=None):
-        logging.debug("message '%s'", str(message))
+        log.debug("message '%s'", str(message))
         args = {'gremlin': message, 'aliases': {'g': self._traversal_source}}
         processor = ''
         op = 'eval'
@@ -168,7 +173,7 @@ class Client:
             processor = 'session'
 
         if isinstance(message, traversal.Bytecode) or isinstance(message, str):
-            logging.debug("processor='%s', op='%s', args='%s'", str(processor), str(op), str(args))
+            log.debug("processor='%s', op='%s', args='%s'", str(processor), str(op), str(args))
             message = request.RequestMessage(processor=processor, op=op, args=args)
 
         conn = self._pool.get(True)

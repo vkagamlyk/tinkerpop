@@ -19,15 +19,12 @@
 package org.apache.tinkerpop.gremlin.server;
 
 import org.apache.tinkerpop.gremlin.util.ExceptionHelper;
-import org.apache.log4j.Level;
 import org.apache.tinkerpop.gremlin.driver.Client;
 import org.apache.tinkerpop.gremlin.driver.Cluster;
-import org.apache.tinkerpop.gremlin.driver.MessageSerializer;
+import org.apache.tinkerpop.gremlin.util.MessageSerializer;
 import org.apache.tinkerpop.gremlin.driver.exception.ResponseException;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
-import org.apache.tinkerpop.gremlin.driver.ser.GraphBinaryMessageSerializerV1;
-import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV1d0;
-import org.apache.tinkerpop.gremlin.driver.ser.GryoMessageSerializerV3d0;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1;
 import org.apache.tinkerpop.gremlin.server.auth.Krb5Authenticator;
 import org.ietf.jgss.GSSException;
 import org.junit.Test;
@@ -53,16 +50,9 @@ public class GremlinServerAuthKrb5IntegrateTest extends AbstractGremlinServerInt
     static final String TESTCONSOLE_NOT_LOGGED_IN = "UserNotLoggedIn";
 
     private KdcFixture kdcServer;
-    private Level previousLogLevel;
 
     @Override
     public void setUp() throws Exception {
-        // this logger is noisy for travis and we don't assert anything and the error is already tracked on
-        // the server so we can trim the logs a bit with this.
-        final org.apache.log4j.Logger handlerLogger = org.apache.log4j.Logger.getLogger(
-                "org.apache.tinkerpop.gremlin.driver.Handler$GremlinResponseHandler");
-        previousLogLevel = handlerLogger.getLevel();
-        handlerLogger.setLevel(Level.OFF);
 
         try {
             final String projectBaseDir = System.getProperty("basedir", ".");
@@ -78,10 +68,6 @@ public class GremlinServerAuthKrb5IntegrateTest extends AbstractGremlinServerInt
 
     @Override
     public void tearDown() throws Exception {
-        final org.apache.log4j.Logger handlerLogger = org.apache.log4j.Logger.getLogger(
-                "org.apache.tinkerpop.gremlin.driver.Handler$GremlinResponseHandler");
-        handlerLogger.setLevel(previousLogLevel);
-
         kdcServer.close();
         System.clearProperty("java.security.auth.login.config");
         super.tearDown();
@@ -214,16 +200,6 @@ public class GremlinServerAuthKrb5IntegrateTest extends AbstractGremlinServerInt
                 .protocol(kdcServer.serverPrincipalName).create();
         final Client client = cluster.connect();
         assertConnection(cluster, client);
-    }
-
-    @Test
-    public void shouldAuthenticateWithSerializeResultToStringGryoV1() throws Exception {
-        assertAuthViaToStringWithSpecifiedSerializer(new GryoMessageSerializerV1d0());
-    }
-
-    @Test
-    public void shouldAuthenticateWithSerializeResultToStringGryoV3() throws Exception {
-        assertAuthViaToStringWithSpecifiedSerializer(new GryoMessageSerializerV3d0());
     }
 
     @Test

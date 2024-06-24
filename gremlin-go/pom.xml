@@ -21,7 +21,7 @@ limitations under the License.
     <parent>
         <groupId>org.apache.tinkerpop</groupId>
         <artifactId>tinkerpop</artifactId>
-        <version>3.5.4-SNAPSHOT</version>
+        <version>3.7.0-SNAPSHOT</version>
     </parent>
     <artifactId>gremlin-go</artifactId>
     <name>Apache TinkerPop :: Gremlin Go</name>
@@ -88,35 +88,58 @@ limitations under the License.
                         <version>1.2.1</version>
                         <executions>
                             <execution>
-                                <id>run integration tests</id>
-                                <phase>verify</phase>
+                                <id>run-tests</id>
+                                <phase>integration-test</phase>
                                 <goals>
                                     <goal>exec</goal>
                                 </goals>
                                 <configuration>
-                                    <!-- tests pass, but there is some trouble running these in docker/build.sh
-                                         as docker-compose isn't a command available in that image. skipping until
-                                         resolved -->
-                                    <skip>true</skip>
+                                    <skip>${skipTests}</skip>
+                                    <environmentVariables>
+                                        <GREMLIN_SERVER>${project.version}</GREMLIN_SERVER>
+                                        <ABS_PROJECT_HOME>${project.basedir}/../</ABS_PROJECT_HOME>
+                                        <!-- setting this env variable is needed to be cross-platform compatible -->
+                                        <HOME>${user.home}</HOME>
+                                    </environmentVariables>
                                     <executable>docker-compose</executable>
                                     <arguments>
                                         <argument>up</argument>
+                                        <argument>--build</argument>
                                         <argument>--exit-code-from</argument>
                                         <argument>gremlin-go-integration-tests</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
                             <execution>
-                                <id>shutdown container</id>
-                                <phase>verify</phase>
+                                <id>shutdown-container</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
-                                    <!-- tests pass, but there is some trouble running these in docker/build.sh
-                                         as docker-compose isn't a command available in that image. skipping until
-                                         resolved -->
-                                    <skip>true</skip>
+                                    <skip>${skipTests}</skip>
+                                    <!-- don't need to set env variables for container tear down -->
                                     <executable>docker-compose</executable>
                                     <arguments>
                                         <argument>down</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>remove-dangling-images</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${skipTests}</skip>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>image</argument>
+                                        <argument>prune</argument>
+                                        <argument>--filter</argument>
+                                        <argument>label=maintainer=dev@tinkerpop.apache.org</argument>
+                                        <argument>-f</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -138,25 +161,25 @@ limitations under the License.
                             </dependency>
                             <dependency>
                                 <groupId>org.apache.tinkerpop</groupId>
-                                <artifactId>neo4j-gremlin</artifactId>
+                                <artifactId>gremlin-language</artifactId>
                                 <version>${project.version}</version>
                             </dependency>
                             <dependency>
-                                <groupId>commons-io</groupId>
-                                <artifactId>commons-io</artifactId>
-                                <version>${commons.io.version}</version>
-                            </dependency>
-                            <dependency>
-                                <groupId>log4j</groupId>
-                                <artifactId>log4j</artifactId>
-                                <version>${log4j.version}</version>
-                                <scope>runtime</scope>
+                                <groupId>org.apache.tinkerpop</groupId>
+                                <artifactId>neo4j-gremlin</artifactId>
+                                <version>${project.version}</version>
                             </dependency>
                             <dependency>
                                 <groupId>org.codehaus.groovy</groupId>
                                 <artifactId>groovy-all</artifactId>
                                 <version>${groovy.version}</version>
                                 <type>pom</type>
+                                <scope>runtime</scope>
+                            </dependency>
+                            <dependency>
+                                <groupId>ch.qos.logback</groupId>
+                                <artifactId>logback-classic</artifactId>
+                                <version>${logback.version}</version>
                                 <scope>runtime</scope>
                             </dependency>
                         </dependencies>

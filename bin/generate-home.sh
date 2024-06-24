@@ -25,6 +25,7 @@ mkdir -p target/site/
 
 pushd docs/gremlint
 
+echo "npm: $(npm -version)"
 npm install
 npm run build
 
@@ -40,12 +41,6 @@ else
   cp -R docs/gremlint/build/. target/site/home/gremlint
   rm -rf target/site/home/template
 fi
-
-pushd docs/site/
-
-for filename in home/*.html; do
-  sed -e "/!!!!!BODY!!!!!/ r $filename" home/template/header-footer.html -e /!!!!!BODY!!!!!/d > "../../target/site/${filename}"
-done
 
 popd
 

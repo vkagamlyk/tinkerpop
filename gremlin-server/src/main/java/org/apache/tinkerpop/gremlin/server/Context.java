@@ -18,15 +18,16 @@
  */
 package org.apache.tinkerpop.gremlin.server;
 
-import org.apache.tinkerpop.gremlin.driver.Tokens;
-import org.apache.tinkerpop.gremlin.driver.message.RequestMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseMessage;
-import org.apache.tinkerpop.gremlin.driver.message.ResponseStatusCode;
+import org.apache.tinkerpop.gremlin.util.Tokens;
+import org.apache.tinkerpop.gremlin.util.message.RequestMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseMessage;
+import org.apache.tinkerpop.gremlin.util.message.ResponseStatusCode;
 import org.apache.tinkerpop.gremlin.groovy.engine.GremlinExecutor;
 import io.netty.channel.ChannelHandlerContext;
-import org.apache.tinkerpop.gremlin.groovy.jsr223.GremlinScriptChecker;
+import org.apache.tinkerpop.gremlin.jsr223.GremlinScriptChecker;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.server.handler.Frame;
+import org.apache.tinkerpop.gremlin.server.handler.WsUserAgentHandler;
 import org.apache.tinkerpop.gremlin.structure.Graph;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +54,7 @@ public class Context {
     private final long requestTimeout;
     private final RequestContentType requestContentType;
     private final Object gremlinArgument;
+    private final AtomicBoolean startedResponse = new AtomicBoolean(false);
 
     /**
      * The type of the request as determined by the contents of {@link Tokens#ARGS_GREMLIN}.
@@ -150,6 +152,43 @@ public class Context {
      */
     public GremlinExecutor getGremlinExecutor() {
         return gremlinExecutor;
+    }
+
+    /**
+     * Returns the user agent (if any) which was sent from the client during the web socket handshake.
+     * Returns empty string if no user agent exists
+     */
+    public String getUserAgent() {
+        return getChannelHandlerContext().channel().hasAttr(WsUserAgentHandler.USER_AGENT_ATTR_KEY) ?
+                getChannelHandlerContext().channel().attr(WsUserAgentHandler.USER_AGENT_ATTR_KEY).get() : "";
+    }
+
+    /**
+     * Gets whether the server has started processing the response for this request.
+     */
+    public boolean getStartedResponse() { return startedResponse.get(); }
+
+    /**
+     * Signal that the server has started processing the response.
+     */
+    public void setStartedResponse() { startedResponse.set(true); }
+
+    /**
+     * Writes a default timeout error response message to the underlying channel.
+     */
+    public void sendTimeoutResponse() {
+        sendTimeoutResponse(String.format("A timeout occurred during traversal evaluation of [%s] - consider increasing the limit given to evaluationTimeout", requestMessage));
+    }
+
+    /**
+     * Writes a specific timeout error response message to the underlying channel.
+     */
+    public void sendTimeoutResponse(final String message) {
+        logger.warn(message);
+        writeAndFlush(ResponseMessage.build(requestMessage)
+                .code(ResponseStatusCode.SERVER_ERROR_TIMEOUT)
+                .statusMessage(message)
+                .statusAttributeException(new InterruptedException()).create());
     }
 
     /**

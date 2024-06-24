@@ -420,6 +420,7 @@ public class GroovyTranslatorTests
             { _g.V().Has("runways", P.Inside(3, 5)), "g.V().has('runways', P.inside([3, 5]))" },
             { _g.V("44").OutE().ElementMap<object>(), "g.V('44').outE().elementMap()" },
             { _g.V("44").ValueMap<object, object>().By(__.Unfold<object>()), "g.V('44').valueMap().by(__.unfold())" },
+            { _g.V().E("1"), "g.V().E('1')" },
 
             // TODO: Support WithOptions
             {
@@ -454,9 +455,9 @@ public class GroovyTranslatorTests
                 "g.withStrategies(new ReadOnlyStrategy(), new SubgraphStrategy(vertices: __.has('region', 'US-TX'), edges: __.hasLabel('route'))).V().count()"
             },
             {
-                _g.WithStrategies(new ReadOnlyStrategy(), new SubgraphStrategy(vertices: __.Has("region", "US-TX"))).V()
+                _g.WithStrategies(new ReadOnlyStrategy(), new SubgraphStrategy(vertices: __.Has("region", "US-TX"), checkAdjacentVertices: true)).V()
                     .Count(),
-                "g.withStrategies(new ReadOnlyStrategy(), new SubgraphStrategy(vertices: __.has('region', 'US-TX'))).V().count()"
+                "g.withStrategies(new ReadOnlyStrategy(), new SubgraphStrategy(vertices: __.has('region', 'US-TX'), checkAdjacentVertices: true)).V().count()"
             },
             {
                 _g.With("evaluationTimeout", 500).V().Count(),
@@ -485,7 +486,7 @@ public class GroovyTranslatorTests
         }
     }
 
-    private void AssertTranslation(string expectedTranslation, params object[] objs)
+    private void AssertTranslation(string expectedTranslation, params object?[]? objs)
     {
         AssertTraversalTranslation($"g.inject({expectedTranslation})", _g.Inject(objs));
     }

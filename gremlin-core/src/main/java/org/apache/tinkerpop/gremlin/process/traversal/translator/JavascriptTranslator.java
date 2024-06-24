@@ -23,13 +23,14 @@ import org.apache.commons.configuration2.ConfigurationConverter;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode;
 import org.apache.tinkerpop.gremlin.process.traversal.P;
+import org.apache.tinkerpop.gremlin.process.traversal.Pick;
 import org.apache.tinkerpop.gremlin.process.traversal.SackFunctions;
 import org.apache.tinkerpop.gremlin.process.traversal.Script;
+import org.apache.tinkerpop.gremlin.process.traversal.Text;
 import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategy;
-import org.apache.tinkerpop.gremlin.process.traversal.step.TraversalOptionParent;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.TraversalStrategyProxy;
 import org.apache.tinkerpop.gremlin.process.traversal.util.ConnectiveP;
 import org.apache.tinkerpop.gremlin.process.traversal.util.OrP;
@@ -37,6 +38,7 @@ import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory;
+import org.apache.tinkerpop.gremlin.util.NumberHelper;
 import org.apache.tinkerpop.gremlin.util.function.Lambda;
 
 import java.sql.Timestamp;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -167,12 +170,20 @@ public final class JavascriptTranslator implements Translator.ScriptTranslator {
         }
 
         @Override
-        protected String getSyntax(final TraversalOptionParent.Pick o) {
+        protected String getSyntax(final Pick o) {
             return "Pick." + o.toString();
         }
 
         @Override
         protected String getSyntax(final Number o) {
+            if (o instanceof Float || o instanceof Double) {
+                if (NumberHelper.isNaN(o))
+                    return "Number.NaN";
+                if (NumberHelper.isPositiveInfinity(o))
+                    return "Number.POSITIVE_INFINITY";
+                if (NumberHelper.isNegativeInfinity(o))
+                    return "Number.NEGATIVE_INFINITY";
+            }
             return o.toString();
         }
 
@@ -326,7 +337,17 @@ public final class JavascriptTranslator implements Translator.ScriptTranslator {
         @Override
         protected Script produceScript(final P<?> p) {
             if (p instanceof TextP) {
-                script.append("TextP.").append(p.getBiPredicate().toString()).append("(");
+                // special case the RegexPredicate since it isn't an enum. toString() for the final default will
+                // typically cover implementations (generally worked for Text prior to 3.6.0)
+                final BiPredicate<?, ?> tp = p.getBiPredicate();
+                if (tp instanceof Text.RegexPredicate) {
+                    final String regexToken = ((Text.RegexPredicate) p.getBiPredicate()).isNegate() ? "notRegex" : "regex";
+                    script.append("TextP.").append(regexToken).append("(");
+                } else if (tp instanceof Text) {
+                    script.append("TextP.").append(((Text) p.getBiPredicate()).name()).append("(");
+                } else {
+                    script.append("TextP.").append(p.getBiPredicate().toString()).append("(");
+                }
                 convertToScript(p.getValue());
             } else if (p instanceof ConnectiveP) {
                 // ConnectiveP gets some special handling because it's reduced to and(P, P, P) and we want it

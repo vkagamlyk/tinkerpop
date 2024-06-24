@@ -24,6 +24,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
 import org.apache.tinkerpop.gremlin.process.traversal.Traverser;
+import org.apache.tinkerpop.gremlin.process.traversal.step.map.CallStep;
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.Tree;
 import org.apache.tinkerpop.gremlin.process.traversal.traverser.util.TraverserSet;
 import org.apache.tinkerpop.gremlin.structure.Column;
@@ -37,6 +38,7 @@ import org.apache.tinkerpop.gremlin.structure.VertexProperty;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -125,6 +127,13 @@ public class __ {
      */
     public static <A> GraphTraversal<A, Vertex> V(final Object... vertexIdsOrElements) {
         return __.<A>start().V(vertexIdsOrElements);
+    }
+
+    /**
+     * @see GraphTraversal#E(Object...)
+     */
+    public static <A> GraphTraversal<A, Edge> E(final Object... edgeIdsOrElements) {
+        return __.<A>start().E(edgeIdsOrElements);
     }
 
     /**
@@ -516,6 +525,27 @@ public class __ {
     }
 
     /**
+     * @see GraphTraversal#mergeV()
+     */
+    public static <A> GraphTraversal<A, Vertex> mergeV() {
+        return __.<A>start().mergeV();
+    }
+
+    /**
+     * @see GraphTraversal#mergeV(Map)
+     */
+    public static <A> GraphTraversal<A, Vertex> mergeV(final Map<Object, Object> searchCreate) {
+        return __.<A>start().mergeV(searchCreate);
+    }
+
+    /**
+     * @see GraphTraversal#mergeV(Traversal)
+     */
+    public static <A> GraphTraversal<A, Vertex> mergeV(final Traversal<?, Map<Object, Object>> searchCreate) {
+        return __.<A>start().mergeV(searchCreate);
+    }
+
+    /**
      * @see GraphTraversal#addE(String)
      */
     public static <A> GraphTraversal<A, Edge> addE(final String edgeLabel) {
@@ -523,10 +553,31 @@ public class __ {
     }
 
     /**
-     * @see GraphTraversal#addE(org.apache.tinkerpop.gremlin.process.traversal.Traversal)
+     * @see GraphTraversal#addE(Traversal)
      */
     public static <A> GraphTraversal<A, Edge> addE(final Traversal<?, String> edgeLabelTraversal) {
         return __.<A>start().addE(edgeLabelTraversal);
+    }
+
+    /**
+     * @see GraphTraversal#mergeE()
+     */
+    public static <A> GraphTraversal<A, Edge> mergeE() {
+        return __.<A>start().mergeE();
+    }
+
+    /**
+     * @see GraphTraversal#mergeE(Map)
+     */
+    public static <A> GraphTraversal<A, Edge> mergeE(final Map<Object, Object> searchCreate) {
+        return __.<A>start().mergeE(searchCreate);
+    }
+
+    /**
+     * @see GraphTraversal#mergeE(Traversal)
+     */
+    public static <A> GraphTraversal<A, Edge> mergeE(final Traversal<?, Map<Object, Object>> searchCreate) {
+        return __.<A>start().mergeE(searchCreate);
     }
 
     /**
@@ -912,6 +963,20 @@ public class __ {
     }
 
     /**
+     * @see GraphTraversal#fail()
+     */
+    public static <A>  GraphTraversal<A, A> fail() {
+        return __.<A>start().fail();
+    }
+
+    /**
+     * @see GraphTraversal#fail(String)
+     */
+    public static <A>  GraphTraversal<A, A> fail(final String message) {
+        return __.<A>start().fail(message);
+    }
+
+    /**
      * @see GraphTraversal#group(String)
      */
     public static <A> GraphTraversal<A, A> group(final String sideEffectKey) {
@@ -967,6 +1032,13 @@ public class __ {
      */
     public static <A> GraphTraversal<A, A> property(final VertexProperty.Cardinality cardinality, final Object key, final Object value, final Object... keyValues) {
         return __.<A>start().property(cardinality, key, value, keyValues);
+    }
+
+    /**
+     * @see GraphTraversal#property(Map)
+     */
+    public static <A> GraphTraversal<A, A> property(final Map<Object, Object> value) {
+        return __.<A>start().property(value);
     }
 
     ///////////////////// BRANCH STEPS /////////////////////
@@ -1146,5 +1218,40 @@ public class __ {
      */
     public static <A, B> GraphTraversal<A, B> index() {
         return __.<A>start().index();
+    }
+
+    /**
+     * @see GraphTraversal#element()
+     */
+    public static <A, B> GraphTraversal<A, Element> element() {
+        return __.<A>start().element();
+    }
+
+    /**
+     * @see GraphTraversal#call(String)
+     */
+    public static <A, B> GraphTraversal<A, B> call(final String service) {
+        return __.<A>start().call(service);
+    }
+
+    /**
+     * @see GraphTraversal#call(String, Map)
+     */
+    public static <A, B> GraphTraversal<A, B> call(final String service, final Map params) {
+        return __.<A>start().call(service, params);
+    }
+
+    /**
+     * @see GraphTraversal#call(String, Traversal)
+     */
+    public static <A, B> GraphTraversal<A, B> call(final String service, final Traversal<?, Map<?,?>> childTraversal) {
+        return __.<A>start().call(service, childTraversal);
+    }
+
+    /**
+     * @see GraphTraversal#call(String, Map, Traversal)
+     */
+    public static <A, B> GraphTraversal<A, B> call(final String service, final Map params, final Traversal<?, Map<?,?>> childTraversal) {
+        return __.<A>start().call(service, params, childTraversal);
     }
 }

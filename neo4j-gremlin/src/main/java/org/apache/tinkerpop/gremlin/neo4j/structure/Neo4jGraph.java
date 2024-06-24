@@ -56,6 +56,7 @@ import java.util.stream.Stream;
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_INTEGRATE)
 @Graph.OptIn(Graph.OptIn.SUITE_PROCESS_STANDARD)
+@Graph.OptIn(Graph.OptIn.SUITE_PROCESS_LIMITED_STANDARD)
 @Graph.OptIn("org.apache.tinkerpop.gremlin.neo4j.NativeNeo4jSuite")
 public final class Neo4jGraph implements Graph, WrappedGraph<Neo4jGraphAPI> {
 
@@ -143,19 +144,22 @@ public final class Neo4jGraph implements Graph, WrappedGraph<Neo4jGraphAPI> {
             return IteratorUtils.stream(this.getBaseGraph().allNodes())
                     .map(node -> (Vertex) new Neo4jVertex(node, this)).iterator();
         } else {
-            ElementHelper.validateMixedElementIds(Vertex.class, vertexIds);
             return Stream.of(vertexIds)
                     .map(id -> {
                         if (id instanceof Number)
                             return ((Number) id).longValue();
                         else if (id instanceof String)
                             return Long.valueOf(id.toString());
-                        else if (id instanceof Vertex) {
-                            return (Long) ((Vertex) id).id();
-                        } else
+                        else if (id instanceof Vertex && ((Vertex) id).id() instanceof Number)
+                            return ((Number) ((Vertex) id).id()).longValue();
+                        else if (null == id)
+                            return null;
+                        else
                             throw new IllegalArgumentException("Unknown vertex id type: " + id);
                     })
                     .flatMap(id -> {
+                        // can't have a null id so just filter
+                        if (null == id) return Stream.empty();
                         try {
                             return Stream.of(this.baseGraph.getNodeById(id));
                         } catch (final RuntimeException e) {
@@ -174,19 +178,22 @@ public final class Neo4jGraph implements Graph, WrappedGraph<Neo4jGraphAPI> {
             return IteratorUtils.stream(this.getBaseGraph().allRelationships())
                     .map(relationship -> (Edge) new Neo4jEdge(relationship, this)).iterator();
         } else {
-            ElementHelper.validateMixedElementIds(Edge.class, edgeIds);
             return Stream.of(edgeIds)
                     .map(id -> {
                         if (id instanceof Number)
                             return ((Number) id).longValue();
                         else if (id instanceof String)
                             return Long.valueOf(id.toString());
-                        else if (id instanceof Edge) {
-                            return (Long) ((Edge) id).id();
-                        } else
+                        else if (id instanceof Edge && ((Edge) id).id() instanceof Number)
+                            return ((Number) ((Edge) id).id()).longValue();
+                        else if (null == id)
+                            return null;
+                        else
                             throw new IllegalArgumentException("Unknown edge id type: " + id);
                     })
                     .flatMap(id -> {
+                        // can't have a null id so just filter
+                        if (null == id) return Stream.empty();
                         try {
                             return Stream.of(this.baseGraph.getRelationshipById(id));
                         } catch (final RuntimeException e) {

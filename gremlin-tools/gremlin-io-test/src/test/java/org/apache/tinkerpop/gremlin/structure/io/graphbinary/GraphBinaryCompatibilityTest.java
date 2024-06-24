@@ -20,7 +20,7 @@ package org.apache.tinkerpop.gremlin.structure.io.graphbinary;
 
 import io.netty.buffer.ByteBufAllocator;
 import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.tinkerpop.gremlin.driver.ser.NettyBufferFactory;
+import org.apache.tinkerpop.gremlin.util.ser.NettyBufferFactory;
 import org.apache.tinkerpop.gremlin.structure.io.binary.GraphBinaryReader;
 import org.apache.tinkerpop.gremlin.structure.io.binary.GraphBinaryWriter;
 import org.apache.tinkerpop.gremlin.structure.io.AbstractTypedCompatibilityTest;
@@ -62,6 +62,12 @@ public class GraphBinaryCompatibilityTest extends AbstractTypedCompatibilityTest
                 {GraphBinaryCompatibility.V1_3_5_2, readerV1, writerV1 },
                 {GraphBinaryCompatibility.V1_3_5_3, readerV1, writerV1 },
                 {GraphBinaryCompatibility.V1_3_5_4, readerV1, writerV1 },
+
+                {GraphBinaryCompatibility.V1_3_6_0, readerV1, writerV1 },
+                {GraphBinaryCompatibility.V1_3_6_1, readerV1, writerV1 },
+
+                {GraphBinaryCompatibility.V1_3_7_0, readerV1, writerV1 },
+
         });
     }
 

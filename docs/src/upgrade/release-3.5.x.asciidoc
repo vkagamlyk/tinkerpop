@@ -21,6 +21,179 @@ image::https://raw.githubusercontent.com/apache/tinkerpop/master/docs/static/ima
 
 *The Sleeping Gremlin: No. 18 Entr'acte Symphonique*
 
+== TinkerPop 3.5.5
+
+*Release Date: NOT OFFICIALLY RELEASED YET*
+
+Please see the link:https://github.com/apache/tinkerpop/blob/3.5.5/CHANGELOG.asciidoc#release-3-5-5[changelog] for a
+complete list of all the modifications that are part of this release.
+
+=== Upgrading for Users
+
+==== Gremlin.NET: Add logging
+
+The Gremlin.NET driver can now be configured for logging to get more insights into its internal state, like when
+a connection was closed and will therefore be replaced. It uses `Microsoft.Extensions.Logging` for this so all kinds
+of different .NET logging implementations can be used.
+
+The following example shows how to provide a `LoggerFactory` that is configured to log to the console to
+`GremlinClient`:
+
+[source,csharp]
+----
+var loggerFactory = LoggerFactory.Create(builder =>
+{
+    builder.AddConsole();
+});
+var client = new GremlinClient(new GremlinServer("localhost", 8182), loggerFactory: loggerFactory);
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2471[TINKERPOP-2471]
+
+==== gremlin-driver Host Availability
+
+The Java drivers approach to determine the health of the host to which it is connected is important to how it behaves.
+The driver has generally taken a pessimistic approach to make this determination, where a failure to borrow a
+connection from the pool would constitute enough evidence to mark the host as dead. Unfortunately a failure to borrow
+from the pool is not the best indicator for a dead host. Intermittent network failure, an overly busy client, or other
+temporary issues could have been at play while the server was perfectly available.
+
+The consequences for marking a host dead are fairly severe as the connection pool is shutdown. While it is shutdown
+in an orderly fashion so as to allow for existing requests to complete if at all possible, it immediately blocks new
+requests producing an immediate `NoHostAvailableException` (assuming there are actually no other hosts to route
+requests to). There is then some delay to reconnect to the server and re-establish each of the connections in the pool,
+which might take some time especially if there was a large pool. If an application were sending hundreds of requests
+a second, it would quickly equate to hundreds of exceptions a second, filling logs quickly and making it hard to
+decipher the original root cause from that initial inability to simply borrow a connection.
+
+For 3.5.5, the driver has dropped some of its pessimistic ways and has taken a more optimistic posture when it comes
+to considering host availability. When the driver now has a problem borrowing a connection from the pool, it does not
+assume the worst of a failed host. It instead checks if the other connections in the pool are still alive. If at least
+one is alive it assumes the host is still available and the user simply gets a `TimeoutException` for waiting beyond
+the `maxWaitForConnection` setting. In the event that there are no connections deemed alive, the driver will try to
+issue an immediate reconnect to determine host health. If the reconnect succeeds then the host remains in an available
+state for future requests and if it fails it is finally marked as dead and thus unavailable.
+
+If a host is marked unavailable, the driver, like before, will try to route requests to other configured hosts that
+are healthy. If there are no such other hosts and all are unhealthy, the driver will now make an immediate attempt to
+route the request to a random unavailable host on the chance it will come back online and the connection pool thus
+re-established. So, rather than a `NoHostAvailableException` flood, the user would instead see a `TimeoutException`
+per request made.
+
+Since the driver was already throwing `NoHostAvailableException` and `TimeoutException`, there shouldn't be too
+many code changes required on upgrade to this version. The main difference to consider is that
+`NoHostAvailableException` should appear less often, so any code that mitigated against a flood of these exceptions
+might not be necessary anymore. One should also consider that if code was relying on the asynchronous
+properties that `Client.submitAsync()` implies in its name, that code may now see more blocking behavior than
+before. In doing this refactoring, it was noted that the connection borrowing behavior has never behaved in a truly
+asynchronous manner and only the fast `NoHostAvailableException` aspect of that method behavior really contributed to
+an asynchronous looking call for failed connection borrowing. With the fast `NoHostAvailableException` gone, it may be
+more likely now to note blocking behavior when a connection cannot be obtained.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2813[TINKERPOP-2813]
+
+== TinkerPop 3.5.4
+
+*Release Date: July 18, 2022*
+
+Please see the link:https://github.com/apache/tinkerpop/blob/3.5.4/CHANGELOG.asciidoc#release-3-5-4[changelog] for a
+complete list of all the modifications that are part of this release.
+
+=== Upgrading for Users
+
+==== SparkIOUtil utility
+
+A utility class `SparkIOUtil` is introduces, which allows users to load graph into Spark RDD via
+`loadVertices(org.apache.commons.configuration2.Configuration, JavaSparkContext)` method.
+
+==== Gremlin-Go
+
+After introducing a number of release candidates over the past several months, the official release of Gremlin-Go is now
+available starting at 3.5.4. There are a few simple prerequisites required to get started:
+
+* A Golang version of `1.17` or greater. Please see link:https://go.dev/dl/[Go Downloads] for more details on installing Golang.
+* A basic understanding of link:https://go.dev/blog/using-go-modules[Go Modules].
+* A project set up using Go Modules where `gremlin-go` will be used as a dependency.
+
+In the root directory of your project, containing the `go.mod` file, run the following command:
+
+`go get github.com/apache/tinkerpop/gremlin-go/v3@v3.5.4`
+
+Afterwards, we can quickly get started with writing Gremlin in Go:
+
+[source,go]
+----
+package main
+
+import (
+    "fmt"
+    "github.com/apache/tinkerpop/gremlin-go/v3/driver"
+)
+
+func main() {
+    // Creating the connection to the server
+    driverRemoteConnection, err := gremlingo.NewDriverRemoteConnection("ws://localhost:8182/gremlin",
+        func(settings *gremlingo.DriverRemoteConnectionSettings) {
+            // Configure optional settings
+            settings.LogVerbosity = gremlingo.Info
+            settings.InitialConcurrentConnections = 2
+        }
+    )
+    // Handle error
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
+    // Cleanup
+    defer driverRemoteConnection.Close()
+
+    // Creating graph traversal
+    g := gremlingo.Traversal_().WithRemote(driverRemoteConnection)
+
+    // Perform traversal
+    result, err := g.V().Count().ToList()
+    if err != nil {
+    fmt.Println(err)
+        return
+    }
+    fmt.Println(result[0].GetString())
+}
+----
+
+For full documentation on the available API to give Gremlin Go a try, click link:https://pkg.go.dev/github.com/apache/tinkerpop/gremlin-go/v3@v3.5.4/driver[here].
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2692[TINKERPOP-2692]
+
+==== GraphBinary support for gremlin-javascript
+
+Gremlin JavaScript now also supports GraphBinary. GraphSON3 still remains the default serialization format.
+
+To enable GraphBinary support, set the mime type in the connection options.
+
+[source,javascript]
+----
+const options = { mimeType: 'application/vnd.graphbinary-v1.0' }
+const g = traversal().withRemote(new DriverRemoteConnection('ws://localhost:8182/gremlin', options));
+----
+
+==== Deprecated connectOnStartup option in gremlin-javascript
+
+Deprecated and removed functionality of the `connectOnStartup` option for Gremlin Javascript to resolve potential
+`unhandledRejection` and race conditions. Setting `connectOnStartup` to `true` will only trigger a console warning.
+
+New DriverRemoteConnection objects no longer initiate connection by default at startup. Call `open()` explicitly if one
+wishes to connect on startup. For example:
+
+[source,javascript]
+----
+const drc = new DriverRemoteConnection(url);
+drc.open().catch(err => {
+   // Handle error upon open.
+})
+----
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2708[TINKERPOP-2708]
+
 == TinkerPop 3.5.3
 
 *Release Date: April 4, 2022*
@@ -110,7 +283,19 @@ gremlin> datetime('2022-10-02T00:00:00-0400').toGMTString()
 The above examples use the Java `Date` method `toGMTString()` to properly format the date for demonstration purposes.
 From a Gremlin language perspective there are no functions that can be called on the return value of `datetime()`.
 
-See:link:https://issues.apache.org/jira/browse/TINKERPOP-2596[TINKERPOP-2596]
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2596[TINKERPOP-2596]
+
+==== Driver Defaults
+
+Some default value settings were changed to be consistent across different languages.
+
+* The default for `PoolSize` is now `8` instead of `4` in .NET.
+* The default for `MaxInProcessPerConnection` is now `32` instead of `16` in .NET.
+* The default for `maxContentLength` is now 10 mb in the Java builder instead of 65536.
+* The default for `pool_size` is now `8` instead of `4` in Python.
+* If a `protocol_factory` is not specified, it now adheres to the `max_content_length` specified instead of always using 65536 in Python.
+
+See: link:https://issues.apache.org/jira/browse/TINKERPOP-2379[TINKERPOP-2379]
 
 ==== fold() Map
 
@@ -542,7 +727,7 @@ IMPORTANT: The `g.tx()` is only supported in Java at this time. Support for othe
 future releases on the 3.5.x line.
 
 See: link:https://issues.apache.org/jira/browse/TINKERPOP-2537[TINKERPOP-2537],
-link:https://tinkerpop.apache.org/docs/current/reference/#transactions[Reference Documentation - Transactions]
+link:https://tinkerpop.apache.org/docs/x.y.z/reference/#transactions[Reference Documentation - Transactions]
 
 ==== Anonymous Child Traversals
 
@@ -923,7 +1108,7 @@ g = traversal().withRemote(DriverRemoteConnection(
 ----
 
 See: link:https://issues.apache.org/jira/browse/TINKERPOP-1641[TINKERPOP-1641],
-link:https://tinkerpop.apache.org/docs/current/reference/#gremlin-python-connecting[Reference Documentation]
+link:https://tinkerpop.apache.org/docs/x.y.z/reference/#gremlin-python-connecting[Reference Documentation]
 
 ==== Deprecation Removal
 

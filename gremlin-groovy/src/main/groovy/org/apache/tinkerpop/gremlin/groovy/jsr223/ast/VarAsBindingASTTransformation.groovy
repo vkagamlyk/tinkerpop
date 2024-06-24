@@ -20,11 +20,13 @@
 package org.apache.tinkerpop.gremlin.groovy.jsr223.ast
 
 import org.apache.tinkerpop.gremlin.process.traversal.Order
+import org.apache.tinkerpop.gremlin.process.traversal.Traversal
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.__
 import org.apache.tinkerpop.gremlin.process.traversal.Translator
 import org.apache.tinkerpop.gremlin.process.traversal.Bytecode
 import org.apache.tinkerpop.gremlin.process.traversal.Bindings
+import org.apache.tinkerpop.gremlin.util.tools.CollectionFactory
 import org.codehaus.groovy.ast.ASTNode
 import org.codehaus.groovy.ast.ClassNode
 import org.codehaus.groovy.ast.CodeVisitorSupport
@@ -93,6 +95,9 @@ class VarAsBindingASTTransformation implements ASTTransformation {
                 if (!expression.empty) {
                     expression.eachWithIndex{ Expression entry, int i ->
                         if (entry instanceof VariableExpression) {
+                            if (entry.getName() == "Infinity")
+                                return
+
                             // need a default binding value - any nonsense that satisfies the step argument should
                             // work typically. the string default works for a great many cases, but sometimes we
                             // need to get more specific. as it sits this list is incomplete and certain bindings
@@ -114,6 +119,21 @@ class VarAsBindingASTTransformation implements ASTTransformation {
                                     break
                                 case GraphTraversal.Symbols.by:
                                     if (i == 1) bindingValue = new PropertyExpression(new ClassExpression(new ClassNode(Order)), "desc")
+                                    break
+                                case GraphTraversal.Symbols.mergeE:
+                                case GraphTraversal.Symbols.mergeV:
+                                    bindingValue = new MethodCallExpression(
+                                        new ClassExpression(new ClassNode(CollectionFactory)), "asMap",
+                                        new TupleExpression(new ConstantExpression(UUID.randomUUID().toString()),
+                                                            new ConstantExpression(UUID.randomUUID().toString())))
+                                    break
+                                case GraphTraversal.Symbols.call:
+                                case GraphTraversal.Symbols.option:
+                                    if (i == 1)
+                                        bindingValue = new MethodCallExpression(
+                                            new ClassExpression(new ClassNode(CollectionFactory)), "asMap",
+                                            new TupleExpression(new ConstantExpression(UUID.randomUUID().toString()),
+                                                                new ConstantExpression(UUID.randomUUID().toString())))
                                     break
                             }
                             def bindingExpression = createBindingFromVar(entry.text, bindingVariableName, bindingValue)

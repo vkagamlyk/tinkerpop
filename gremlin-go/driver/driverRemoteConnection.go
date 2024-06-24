@@ -31,19 +31,20 @@ import (
 type DriverRemoteConnectionSettings struct {
 	session string
 
-	TraversalSource   string
-	TransporterType   TransporterType
-	LogVerbosity      LogVerbosity
-	Logger            Logger
-	Language          language.Tag
-	AuthInfo          *AuthInfo
-	TlsConfig         *tls.Config
-	KeepAliveInterval time.Duration
-	WriteDeadline     time.Duration
-	ConnectionTimeout time.Duration
-	EnableCompression bool
-	ReadBufferSize    int
-	WriteBufferSize   int
+	TraversalSource          string
+	TransporterType          TransporterType
+	LogVerbosity             LogVerbosity
+	Logger                   Logger
+	Language                 language.Tag
+	AuthInfo                 *AuthInfo
+	TlsConfig                *tls.Config
+	KeepAliveInterval        time.Duration
+	WriteDeadline            time.Duration
+	ConnectionTimeout        time.Duration
+	EnableCompression        bool
+	EnableUserAgentOnConnect bool
+	ReadBufferSize           int
+	WriteBufferSize          int
 
 	// Minimum amount of concurrent active traversals on a connection to trigger creation of a new connection
 	NewConnectionThreshold int
@@ -71,17 +72,18 @@ func NewDriverRemoteConnection(
 	settings := &DriverRemoteConnectionSettings{
 		session: "",
 
-		TraversalSource:   "g",
-		TransporterType:   Gorilla,
-		LogVerbosity:      Info,
-		Logger:            &defaultLogger{},
-		Language:          language.English,
-		AuthInfo:          &AuthInfo{},
-		TlsConfig:         &tls.Config{},
-		KeepAliveInterval: keepAliveIntervalDefault,
-		WriteDeadline:     writeDeadlineDefault,
-		ConnectionTimeout: connectionTimeoutDefault,
-		EnableCompression: false,
+		TraversalSource:          "g",
+		TransporterType:          Gorilla,
+		LogVerbosity:             Info,
+		Logger:                   &defaultLogger{},
+		Language:                 language.English,
+		AuthInfo:                 &AuthInfo{},
+		TlsConfig:                &tls.Config{},
+		KeepAliveInterval:        keepAliveIntervalDefault,
+		WriteDeadline:            writeDeadlineDefault,
+		ConnectionTimeout:        connectionTimeoutDefault,
+		EnableCompression:        false,
+		EnableUserAgentOnConnect: true,
 		// ReadBufferSize and WriteBufferSize specify I/O buffer sizes in bytes. The default is 1048576.
 		// If a buffer size is set zero, then the Gorilla websocket 4096 default size is used. The I/O buffer
 		// sizes do not limit the size of the messages that can be sent or received.
@@ -97,14 +99,15 @@ func NewDriverRemoteConnection(
 	}
 
 	connSettings := &connectionSettings{
-		authInfo:          settings.AuthInfo,
-		tlsConfig:         settings.TlsConfig,
-		keepAliveInterval: settings.KeepAliveInterval,
-		writeDeadline:     settings.WriteDeadline,
-		connectionTimeout: settings.ConnectionTimeout,
-		enableCompression: settings.EnableCompression,
-		readBufferSize:    settings.ReadBufferSize,
-		writeBufferSize:   settings.WriteBufferSize,
+		authInfo:                 settings.AuthInfo,
+		tlsConfig:                settings.TlsConfig,
+		keepAliveInterval:        settings.KeepAliveInterval,
+		writeDeadline:            settings.WriteDeadline,
+		connectionTimeout:        settings.ConnectionTimeout,
+		enableCompression:        settings.EnableCompression,
+		readBufferSize:           settings.ReadBufferSize,
+		writeBufferSize:          settings.WriteBufferSize,
+		enableUserAgentOnConnect: settings.EnableUserAgentOnConnect,
 	}
 
 	logHandler := newLogHandler(settings.Logger, settings.LogVerbosity, settings.Language)
@@ -169,8 +172,8 @@ func (driver *DriverRemoteConnection) Submit(traversalString string) (ResultSet,
 	return result, err
 }
 
-// submitBytecode sends a bytecode traversal to the server.
-func (driver *DriverRemoteConnection) submitBytecode(bytecode *bytecode) (ResultSet, error) {
+// submitBytecode sends a Bytecode traversal to the server.
+func (driver *DriverRemoteConnection) submitBytecode(bytecode *Bytecode) (ResultSet, error) {
 	if driver.isClosed {
 		return nil, newError(err0203SubmitBytecodeToClosedConnectionError)
 	}
@@ -225,13 +228,13 @@ func (driver *DriverRemoteConnection) GetSessionId() string {
 }
 
 func (driver *DriverRemoteConnection) commit() (ResultSet, error) {
-	bc := &bytecode{}
-	bc.addSource("tx", "commit")
+	bc := &Bytecode{}
+	bc.AddSource("tx", "commit")
 	return driver.submitBytecode(bc)
 }
 
 func (driver *DriverRemoteConnection) rollback() (ResultSet, error) {
-	bc := &bytecode{}
-	bc.addSource("tx", "rollback")
+	bc := &Bytecode{}
+	bc.AddSource("tx", "rollback")
 	return driver.submitBytecode(bc)
 }

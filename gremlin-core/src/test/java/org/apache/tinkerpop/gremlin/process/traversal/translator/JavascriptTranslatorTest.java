@@ -22,6 +22,7 @@ package org.apache.tinkerpop.gremlin.process.traversal.translator;
 import org.apache.tinkerpop.gremlin.process.traversal.Order;
 import org.apache.tinkerpop.gremlin.process.traversal.Pop;
 import org.apache.tinkerpop.gremlin.process.traversal.Scope;
+import org.apache.tinkerpop.gremlin.process.traversal.TextP;
 import org.apache.tinkerpop.gremlin.process.traversal.Translator;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversalSource;
 import org.apache.tinkerpop.gremlin.process.traversal.strategy.decoration.SeedStrategy;
@@ -108,6 +109,13 @@ public class JavascriptTranslatorTest {
     }
 
     @Test
+    public void shouldTranslateTextP() {
+        assertTranslation("TextP.containing(\"ark\")", TextP.containing("ark"));
+        assertTranslation("TextP.regex(\"ark\")", TextP.regex("ark"));
+        assertTranslation("TextP.notRegex(\"ark\")", TextP.notRegex("ark"));
+    }
+
+    @Test
     public void shouldTranslateScope() {
         assertTranslation("Scope.local", Scope.local);
     }
@@ -119,7 +127,13 @@ public class JavascriptTranslatorTest {
 
     @Test
     public void shouldHaveNull() {
-        translator.translate(g.inject(null, null).asAdmin().getBytecode()).getScript();
+        assertEquals("g.inject(null,null)", translator.translate(g.inject(null, null).asAdmin().getBytecode()).getScript());
+        assertEquals("g.V()", translator.translate(g.V().asAdmin().getBytecode()).getScript());
+        assertEquals("g.V(null)", translator.translate(g.V(null).asAdmin().getBytecode()).getScript());
+        assertEquals("g.V(null,null)", translator.translate(g.V(null, null).asAdmin().getBytecode()).getScript());
+        assertEquals("g.E()", translator.translate(g.E().asAdmin().getBytecode()).getScript());
+        assertEquals("g.E(null)", translator.translate(g.E(null).asAdmin().getBytecode()).getScript());
+        assertEquals("g.E(null,null)", translator.translate(g.E(null, null).asAdmin().getBytecode()).getScript());
     }
 
     @Test

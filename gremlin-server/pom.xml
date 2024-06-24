@@ -21,10 +21,18 @@ limitations under the License.
     <parent>
         <groupId>org.apache.tinkerpop</groupId>
         <artifactId>tinkerpop</artifactId>
-        <version>3.5.4-SNAPSHOT</version>
+        <version>3.7.0-SNAPSHOT</version>
     </parent>
     <artifactId>gremlin-server</artifactId>
     <name>Apache TinkerPop :: Gremlin Server</name>
+    <properties>
+        <!--
+        provides a way to convert maven.exec.skip value to skipImageBuild for use in skipping image building for testing
+        under incompatible platforms
+        -->
+        <maven.exec.skip>false</maven.exec.skip> <!-- default -->
+        <skipImageBuild>${maven.exec.skip}</skipImageBuild>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
@@ -33,7 +41,7 @@ limitations under the License.
         </dependency>
         <dependency>
             <groupId>org.apache.tinkerpop</groupId>
-            <artifactId>gremlin-driver</artifactId>
+            <artifactId>gremlin-util</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
@@ -46,13 +54,8 @@ limitations under the License.
             <artifactId>commons-collections</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
             <optional>true</optional>
         </dependency>
         <!-- METRICS -->
@@ -78,6 +81,12 @@ limitations under the License.
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.apache.tinkerpop</groupId>
+            <artifactId>gremlin-driver</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>junit-benchmarks</artifactId>
             <version>0.7.2</version>
@@ -92,6 +101,11 @@ limitations under the License.
             <groupId>org.apache.tinkerpop</groupId>
             <artifactId>neo4j-gremlin</artifactId>
             <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.hakky54</groupId>
+            <artifactId>logcaptor</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -148,9 +162,61 @@ limitations under the License.
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
             </plugin>
+            <!--
+            gremlin server image will be generated on each build as language variants will need the latest to do
+            their work.
+            -->
+            <plugin>
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>1.2.1</version>
+                <executions>
+                    <execution>
+                        <id>build-image</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skipImageBuild}</skip>
+                            <executable>docker</executable>
+                            <arguments>
+                                <argument>build</argument>
+                                <argument>-f</argument>
+                                <argument>./Dockerfile</argument>
+                                <argument>--build-arg</argument>
+                                <argument>GREMLIN_SERVER_DIR=target/apache-tinkerpop-${project.artifactId}-${project.version}-standalone</argument>
+                                <argument>-t</argument>
+                                <argument>tinkerpop/gremlin-server:${project.version}</argument>
+                                <argument>.</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>remove-dangling-images</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skipImageBuild}</skip>
+                            <executable>docker</executable>
+                            <arguments>
+                                <argument>image</argument>
+                                <argument>prune</argument>
+                                <argument>--filter</argument>
+                                <argument>label=maintainer=dev@tinkerpop.apache.org</argument>
+                                <argument>-f</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
     <profiles>
+
         <profile>
             <id>use-epoll</id>
             <activation>
@@ -267,7 +333,7 @@ limitations under the License.
                 <dependency>
                     <groupId>io.dropwizard.metrics</groupId>
                     <artifactId>metrics-core</artifactId>
-                    <version>4.0.2</version>
+                    <version>4.2.11</version>
                     <scope>test</scope>
                 </dependency>
                 <dependency>
@@ -344,6 +410,16 @@ limitations under the License.
                                 </configuration>
                             </execution>
                             <execution>
+                                <id>docker-image-tag-latest</id>
+                                <goals>
+                                    <goal>tag</goal>
+                                </goals>
+                                <configuration>
+                                    <tag>latest</tag>
+                                    <skip>${only.when.is.prerelease.version}</skip>
+                                </configuration>
+                            </execution>
+                            <execution>
                                 <id>docker-image-push</id>
                                 <phase>deploy</phase>
                                 <goals>
@@ -362,6 +438,17 @@ limitations under the License.
                                 </goals>
                                 <configuration>
                                     <tag>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}</tag>
+                                    <skip>${only.when.is.prerelease.version}</skip>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>docker-image-push-latest</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>push</goal>
+                                </goals>
+                                <configuration>
+                                    <tag>latest</tag>
                                     <skip>${only.when.is.prerelease.version}</skip>
                                 </configuration>
                             </execution>
